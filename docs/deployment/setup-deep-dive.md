@@ -40,7 +40,7 @@ volumes:
 
 > ⚠️ **重要**：兩個容器共用同一個資料夾。Hermes 的 session 與 memory store **不支援並行寫入**，因此切勿同時跑兩個 gateway 共用同一資料夾。
 >
-> 多 instance 部署請改用 [多 Profile 設定](../guides/multi-profile.md)。
+> 多 instance 部署可參考 [`~/.hermes` 資料夾結構說明 §4](../guides/data-volume.md#4-多-profile-切換)（注意：尚未實際驗證）。
 
 ## 3. 環境變數與 runtime 設定
 
@@ -193,4 +193,3 @@ chmod 700 ~/.hermes
 - [安裝指南](setup.md)
 - [Allowlist 設定指南](../guides/allowlist-config.md)
 - [資料夾結構說明](../guides/data-volume.md)
-- [多 Profile 部署](../guides/multi-profile.md)

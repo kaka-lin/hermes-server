@@ -19,6 +19,21 @@ services:
       API_SERVER_CORS_ORIGINS: "*"
     # Playwright/Chromium 共享記憶體；停用 browser tools 時可設為較小值
     shm_size: "${HERMES_SHM_SIZE:-1g}"
+    # 內網 DNS 無法穩定解析外部域名，強制使用公共 DNS
+    # 避免關閉 VPN 後 container 整個失去外網（Discord 下線 / Telegram 卡死 / LLM timeout）
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    # Python 底層 Socket/DNS 快取在 VPN 切換後可能卡死；
+    # healthcheck 定期探測外網，快速暴露 unhealthy 狀態方便處理
+    # 詳見 docs/troubleshooting/docker-dns-vpn.md
+    healthcheck:
+      test: ["CMD", "python3", "-c",
+        "import urllib.request; urllib.request.urlopen('https://discord.com', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
     networks:
       - hermes-net
     deploy:

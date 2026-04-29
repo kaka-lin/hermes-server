@@ -335,7 +335,7 @@ Hermes 執行在 Docker 容器內，要連線到 Mac 上的 Chrome 必須透過 
 
 > 「請幫我連接本機的 Chrome (port 18800) 並打開網頁。」
 
-聰明的 Agent 就會自動幫你在背景跑起轉發站（`cdp_proxy.py`），並透過 CDP 完成連線與網頁操作。
+聰明的 Agent 就會自動幫你在背景跑起轉發站（[`cdp_proxy.py`](../../scripts/cdp_proxy.py)），並透過 CDP 完成連線與網頁操作。
 
 > [!TIP]
 > **給想手動操作的進階使用者：**

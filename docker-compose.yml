@@ -1,20 +1,24 @@
 services:
   hermes:
     image: ${HERMES_IMAGE:-nousresearch/hermes-agent:latest}
-    container_name: "hermes"
+    container_name: "${HERMES_CONTAINER_NAME:-hermes}"
     restart: unless-stopped
     command: gateway run
     ports:
       - "${HERMES_GATEWAY_PORT:-8642}:8642"
-    volumes:
-      &hermes-volumes
+    volumes: &hermes-volumes
       - ${HERMES_DATA_DIR:-${HOME}/.hermes}:/opt/data
-    env_file: &hermes-env-file
-      - .env
+    # Hermes runtime config is read from /opt/data/.env, which maps to
+    # ${HERMES_DATA_DIR:-${HOME}/.hermes}/.env. Keep this repo's .env for
+    # compose-only settings such as ports, limits, image tag, and data path.
     environment:
       TZ: ${TZ:-Asia/Taipei}
-    # 啟用 browser 自動化時取消註解 (需要至少 2GB RAM)
-    # shm_size: "1g"
+      API_SERVER_ENABLED: "true"
+      API_SERVER_HOST: "0.0.0.0"
+      API_SERVER_KEY: "${API_SERVER_KEY:-hermes_default_secret}"
+      API_SERVER_CORS_ORIGINS: "*"
+    # Playwright/Chromium 共享記憶體；停用 browser tools 時可設為較小值
+    shm_size: "${HERMES_SHM_SIZE:-1g}"
     networks:
       - hermes-net
     deploy:
@@ -25,13 +29,12 @@ services:
 
   dashboard:
     image: ${HERMES_IMAGE:-nousresearch/hermes-agent:latest}
-    container_name: "hermes-dashboard"
+    container_name: "${HERMES_DASHBOARD_CONTAINER_NAME:-hermes-dashboard}"
     restart: unless-stopped
-    command: dashboard --host 0.0.0.0
+    command: dashboard --host 0.0.0.0 --insecure
     ports:
       - "${HERMES_DASHBOARD_PORT:-9119}:9119"
     volumes: *hermes-volumes
-    env_file: *hermes-env-file
     environment:
       TZ: ${TZ:-Asia/Taipei}
       GATEWAY_HEALTH_URL: ${GATEWAY_HEALTH_URL:-http://hermes:8642}
@@ -40,6 +43,11 @@ services:
       - hermes-net
     depends_on:
       - hermes
+    deploy:
+      resources:
+        limits:
+          memory: ${HERMES_DASHBOARD_MEMORY_LIMIT:-512M}
+          cpus: "${HERMES_DASHBOARD_CPU_LIMIT:-0.5}"
 
 networks:
   hermes-net:

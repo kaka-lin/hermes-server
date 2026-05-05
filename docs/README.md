@@ -50,6 +50,7 @@ docker exec -it hermes hermes sessions list
 
 ### 進階使用
 
+- [Multi-Agent & Profiles)](guides/multi-agent.md)：臨時任務委派 (Delegate Task) 與實體多重程序 (Profiles) 之差異與應用。
 - [瀏覽器自動化設定](guides/browser-automation.md)：`shm_size`、Playwright、記憶體需求。
 
 ## 4. 平台整合 (Platform Integrations)

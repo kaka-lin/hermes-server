@@ -49,13 +49,13 @@ Hermes 主要透過 `~/.hermes/.env` 來進行 Gateway 設定 (在 Docker 中則
   ```
 
 - **Docker 環境**：
-  直接進入已經在運行的 Hermes 容器內執行：
+  在 `docker-compose.yml` 所在目錄執行，透過 Compose 啟動一次性互動容器（會走 entrypoint 自動切換到 `hermes` 使用者並啟用 venv，設定會寫入掛載的資料卷）：
 
   ```bash
-  docker exec -it hermes hermes gateway setup
+  docker compose run --rm hermes gateway setup
   ```
 
-  > 💡 **提示**：設定完成後，請重新啟動容器以套用變更：`docker compose restart hermes`。
+  > 💡 **提示**：設定完成後，請重新啟動主容器以套用變更：`docker compose restart hermes`。
 
 ### 方法 B：手動配置 (.env 與 config.yaml)
 

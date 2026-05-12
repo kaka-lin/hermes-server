@@ -357,8 +357,8 @@ timezone: ''
 discord:
   require_mention: true
   free_response_channels:
-  - '1496924293219487965'
-  - '1498608823500537886'
+  - '1496924293219487965' # general
+  - '1503642517088894996'
   allowed_channels: ''
   auto_thread: true
   reactions: true
@@ -459,3 +459,5 @@ smart_model_routing:
   max_simple_words: 28
 streaming:
   enabled: false
+image_gen:
+  provider: openai

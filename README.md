@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/images/hermes-logo.png" alt="Hermes Agent Server logo" width="120">
+</p>
+
 # Hermes Agent Server
 
 本專案提供由 NousResearch 開發的 [Hermes Agent](https://hermes-agent.nousresearch.com) 的 Docker Compose 部署配置，包含 API Gateway 與 Web Dashboard。

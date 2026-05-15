@@ -554,3 +554,7 @@ streaming:
   enabled: false
 image_gen:
   provider: openai
+DINGTALK_HOME_CHANNEL: cidLbiQUwltTftxMc6IqmG8xw==
+DISCORD_HOME_CHANNEL: 1503642517088894996
+platforms:
+  dingtalk:

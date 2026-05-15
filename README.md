@@ -122,7 +122,7 @@ Compose 編排選項透過此目錄下的 `.env` 設定。完整變數清單請�
 ## 常用指令 (Common Commands)
 
 ```bash
-# 背景啟動所有服務
+# 背景啟動所有服務（若 Dockerfile 有異動可加上 --build）
 docker compose up -d
 
 # 查看即時 log
@@ -134,8 +134,8 @@ docker compose logs --tail 200 hermes
 # 停止服務
 docker compose down
 
-# 更新 image
-docker compose pull && docker compose up -d
+# 更新 image 與重啟服務（確保重新建置客製化 image）
+docker compose pull && docker compose up -d --build
 ```
 
 ## 完整文件 (Documentation)

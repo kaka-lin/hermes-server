@@ -4,7 +4,8 @@ model:
   provider: gemini
 providers: {}
 fallback_providers: []
-credential_pool_strategies: {}
+credential_pool_strategies:
+  gemini: fill_first
 toolsets: '["hermes-cli", "browser"]'
 agent:
   max_turns: 90
@@ -15,7 +16,9 @@ agent:
   tool_use_enforcement: auto
   gateway_timeout_warning: 900
   gateway_notify_interval: 600
+  gateway_auto_continue_freshness: 3600
   image_input_mode: auto
+  disabled_toolsets: []
   personalities:
     catgirl: "You are Neko-chan, an anime catgirl AI assistant, nya~! Add 'nya' and\
       \ cat-like expressions to your speech. Use kaomoji like (=^\uFF65\u03C9\uFF65\
@@ -72,19 +75,27 @@ terminal:
   singularity_image: docker://nikolaik/python-nodejs:python3.11-nodejs20
   modal_image: nikolaik/python-nodejs:python3.11-nodejs20
   daytona_image: nikolaik/python-nodejs:python3.11-nodejs20
+  vercel_runtime: node24
   container_cpu: 1
   container_memory: 5120
   container_disk: 51200
   container_persistent: true
   docker_volumes: []
   docker_mount_cwd_to_workspace: false
+  docker_extra_args: []
+  docker_run_as_host_user: false
   persistent_shell: true
   lifetime_seconds: 300
+web:
+  backend: ''
+  search_backend: ''
+  extract_backend: ''
 browser:
   inactivity_timeout: 120
   command_timeout: 30
   record_sessions: false
   allow_private_urls: false
+  engine: auto
   auto_local_for_private_urls: true
   cdp_url: http://127.0.0.1:18800
   dialog_policy: must_respond
@@ -95,6 +106,8 @@ browser:
 checkpoints:
   enabled: true
   max_snapshots: 50
+  max_total_size_mb: 500
+  max_file_size_mb: 10
   auto_prune: false
   retention_days: 7
   delete_orphans: true
@@ -104,13 +117,31 @@ tool_output:
   max_bytes: 50000
   max_lines: 2000
   max_line_length: 2000
+tool_loop_guardrails:
+  warnings_enabled: true
+  hard_stop_enabled: false
+  warn_after:
+    exact_failure: 2
+    same_tool_failure: 3
+    idempotent_no_progress: 2
+  hard_stop_after:
+    exact_failure: 5
+    same_tool_failure: 8
+    idempotent_no_progress: 5
 compression:
   enabled: true
   threshold: 0.5
   target_ratio: 0.2
   protect_last_n: 20
+  hygiene_hard_message_limit: 400
 prompt_caching:
   cache_ttl: 5m
+  long_lived_prefix: true
+  long_lived_ttl: 1h
+openrouter:
+  response_cache: true
+  response_cache_ttl: 300
+  min_coding_score: 0.65
 bedrock:
   region: ''
   discovery:
@@ -181,6 +212,20 @@ auxiliary:
     api_key: ''
     timeout: 30
     extra_body: {}
+  triage_specifier:
+    provider: auto
+    model: ''
+    base_url: ''
+    api_key: ''
+    timeout: 120
+    extra_body: {}
+  curator:
+    provider: auto
+    model: ''
+    base_url: ''
+    api_key: ''
+    timeout: 600
+    extra_body: {}
   flush_memories:
     api_key: ''
     base_url: ''
@@ -192,13 +237,19 @@ display:
   personality: kawaii
   resume_display: full
   busy_input_mode: interrupt
+  tui_auto_resume_recent: false
   bell_on_complete: false
   show_reasoning: false
   streaming: true
+  timestamps: false
   final_response_markdown: strip
+  persistent_output: true
+  persistent_output_max_lines: 200
   inline_diffs: true
   show_cost: true
   skin: default
+  language: en
+  tui_status_indicator: kaomoji
   user_message_preview:
     first_lines: 2
     last_lines: 2
@@ -206,9 +257,17 @@ display:
   tool_progress_command: false
   tool_progress_overrides: {}
   tool_preview_length: 0
+  ephemeral_system_ttl: 0
   platforms: {}
+  runtime_footer:
+    enabled: false
+    fields:
+    - model
+    - context_pct
+    - cwd
+  copy_shortcut: auto
   background_process_notifications: all
-  tool_progress: false
+  tool_progress: 'off'
 dashboard:
   theme: default
 privacy:
@@ -236,6 +295,8 @@ tts:
     ref_text: ''
     model: neuphonic/neutts-air-q4-gguf
     device: cpu
+  piper:
+    voice: en_US-lessac-medium
 stt:
   enabled: true
   provider: local
@@ -285,6 +346,8 @@ delegation:
   - file
   - web
 prefill_messages_file: ''
+goals:
+  max_turns: 20
 skills:
   external_dirs: []
   template_vars: true
@@ -352,29 +415,53 @@ skills:
     - xitter
     - systematic-debugging
     - test-driven-development
+curator:
+  enabled: true
+  interval_hours: 168
+  min_idle_hours: 2
+  stale_after_days: 30
+  archive_after_days: 90
+  backup:
+    enabled: true
+    keep: 5
 honcho: {}
 timezone: ''
+slack:
+  require_mention: true
+  free_response_channels: ''
+  allowed_channels: ''
+  channel_prompts: {}
 discord:
   require_mention: true
   free_response_channels:
-  - '1496924293219487965' # general
+  - '1496924293219487965'
   - '1503642517088894996'
   allowed_channels: ''
-  auto_thread: true
+  auto_thread: false
   reactions: true
   channel_prompts: {}
+  dm_role_auth_guild: ''
   server_actions: ''
 whatsapp: {}
 telegram:
+  reactions: false
   channel_prompts: {}
-slack:
-  channel_prompts: {}
+  allowed_chats: ''
 mattermost:
+  require_mention: true
+  free_response_channels: ''
+  allowed_channels: ''
   channel_prompts: {}
+matrix:
+  require_mention: true
+  free_response_rooms: ''
+  allowed_rooms: ''
 approvals:
   mode: smart
   timeout: 60
   cron_mode: deny
+  mcp_reload_confirm: true
+  destructive_slash_confirm: true
 command_allowlist: []
 quick_commands: {}
 hooks: {}
@@ -391,9 +478,15 @@ security:
     enabled: false
     domains: []
     shared_files: []
+  acked_advisories: []
+  allow_lazy_installs: true
 cron:
   wrap_response: true
   max_parallel_jobs: null
+kanban:
+  dispatch_in_gateway: true
+  dispatch_interval_seconds: 60
+  failure_limit: 2
 code_execution:
   mode: project
   max_tool_calls: 50

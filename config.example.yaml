@@ -433,9 +433,7 @@ slack:
   channel_prompts: {}
 discord:
   require_mention: true
-  free_response_channels:
-  - '1496924293219487965'
-  - '1505979982961184908'
+  free_response_channels: ''
   allowed_channels: ''
   auto_thread: false
   reactions: true

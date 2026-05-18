@@ -102,7 +102,7 @@ Compose 編排選項透過此目錄下的 `.env` 設定。完整變數清單請�
 - `skills/` — 已安裝的技能
 - `logs/`、`hooks/`、`cron/` — 執行紀錄與排程
 
-> ⚠️ 切勿同時跑兩個 Gateway 共用同一資料夾，Session 與 Memory Store 不支援並行寫入。需要多環境隔離時，請參考 [`~/.hermes` 資料夾結構說明 §4](docs/guides/data-volume.md#4-多-profile-切換)（注意：尚未實際驗證）。
+> ⚠️ 切勿同時跑兩個 Gateway 共用同一資料夾（包含 `hermes -p <名稱> gateway run` 共用 volume 的場景）。多 agent 隔離請每個 agent 各自一個 host 資料夾，官方逐字警告與部署 SOP 見 [Multi-Agent — Docker Compose 多容器部署](docs/guides/multi-agent.md#3-docker-compose-多容器部署)。
 
 ## 瀏覽器自動化 (Browser Automation)
 

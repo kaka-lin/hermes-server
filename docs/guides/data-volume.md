@@ -143,11 +143,15 @@ tar czf hermes-config-$(date +%Y%m%d).tar.gz \
 
 ## 4. 多 profile 切換
 
-> ⚠️ 本專案的 `docker-compose.yml` 已經把 `HERMES_DATA_DIR`、`HERMES_CONTAINER_NAME`、`HERMES_DASHBOARD_CONTAINER_NAME`、`HERMES_GATEWAY_PORT`、`HERMES_DASHBOARD_PORT` 設成可用環境變數覆寫，理論上可以同時跑多個獨立 profile，但**目前尚未實際驗證**。要嘗試前，請至少確認：
->
-> - 不同 profile 用不同的 `HERMES_DATA_DIR`（避免 SQLite lock）
-> - 不同 profile 用不同的 `HERMES_GATEWAY_PORT` / `HERMES_DASHBOARD_PORT`
-> - container_name 不能撞名
+要在本專案部署多個長駐 agent，**每個 agent 都應該有自己獨立的 host 資料夾**（例如 `~/.hermes-work`、`~/.hermes-personal`），不要共掛同一個 `${HERMES_DATA_DIR}`。本專案 `docker-compose.yml` 預留的 `HERMES_DATA_DIR`、`HERMES_CONTAINER_NAME`、`HERMES_GATEWAY_PORT`、`HERMES_DASHBOARD_PORT` 都可以透過 env 覆寫，方便每個 service 各自指向不同 host 路徑。
+
+要點：
+
+- 不同 agent 用不同的 `HERMES_DATA_DIR`
+- 不同 agent 用不同的 `HERMES_GATEWAY_PORT` / `HERMES_DASHBOARD_PORT`
+- container_name 不能撞名
+
+為什麼官方禁止「共用 volume + 多 gateway」、為什麼推薦「一個 container 一個 host dir」，以及完整 SOP，集中於 [Multi-Agent — Docker Compose 多容器部署](multi-agent.md#3-docker-compose-多容器部署)。
 
 ## 5. 安全建議
 
@@ -178,7 +182,9 @@ chown -R $USER:$USER ~/.hermes
 
 ### 6.2 資料夾被鎖
 
-切勿同時跑兩個 gateway 共用同一資料夾。SQLite 會 lock，session 寫入失敗。如需多環境隔離，請參考 §4 的注意事項。
+切勿同時跑兩個 gateway 共用同一資料夾，SQLite 會 lock，session 寫入失敗。`hermes -p <名稱> gateway run` 切換 profile 子目錄**也不能繞過**這條規則。
+
+多 agent 並行的正確做法（每個 agent 各自一個 host 資料夾）見 [本檔多 profile 切換](#4-多-profile-切換) 與 [Multi-Agent — Docker Compose 多容器部署](multi-agent.md#3-docker-compose-多容器部署)。
 
 ### 6.3 磁碟用量過大
 

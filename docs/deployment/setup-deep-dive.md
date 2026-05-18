@@ -38,9 +38,8 @@ volumes:
 
 使用 YAML anchor (`&hermes-volumes`) 避免兩個 service 重複定義 volume。修改一處即可同步兩端。
 
-> ⚠️ **重要**：兩個容器共用同一個資料夾。Hermes 的 session 與 memory store **不支援並行寫入**，因此切勿同時跑兩個 gateway 共用同一資料夾。
->
-> 多 instance 部署可參考 [`~/.hermes` 資料夾結構說明 §4](../guides/data-volume.md#4-多-profile-切換)（注意：尚未實際驗證）。
+> [!IMPORTANT]
+> 兩個容器共用同一個資料夾，但**只允許跑一個 gateway**。`hermes -p <名稱> gateway run` 切換 profile 子目錄也不能繞過這條規則。官方逐字警告與多 instance 部署 SOP 見 [Multi-Agent — Docker Compose 多容器部署](../guides/multi-agent.md#3-docker-compose-多容器部署)。
 
 ## 3. 環境變數與 runtime 設定
 
@@ -63,22 +62,7 @@ docker compose restart hermes
 
 ## 5. Volume 結構
 
-```text
-~/.hermes/                    → /opt/data （容器內）
-├── .env                      # API keys（setup wizard 寫入）
-├── config.yaml               # Agent 設定
-├── sessions/                 # SQLite + FTS5 session DB
-├── memories/
-│   ├── MEMORY.md             # Agent 記憶
-│   └── USER.md               # 使用者 profile
-├── skills/                   # 已安裝的 skills（含 bundled）
-├── logs/                     # 執行紀錄
-├── hooks/                    # 事件 hook 腳本
-├── cron/                     # Cron job 定義（JSON）
-└── pairing/                  # 配對核准資料（chmod 0600）
-```
-
-詳細說明請參閱 [資料夾結構說明](../guides/data-volume.md)。
+`~/.hermes/` 掛載到容器內 `/opt/data`，存放所有 Hermes 狀態（`.env`、`config.yaml`、`state.db`、`memories/`、`skills/`、`cron/`、`pairing/`、`logs/` 等）。完整目錄結構與各檔案職責見 [資料夾結構說明 — 整體結構](../guides/data-volume.md#1-整體結構)。
 
 ## 6. 資源限制設計
 
@@ -103,19 +87,13 @@ HERMES_MEMORY_LIMIT=1G
 HERMES_SHM_SIZE=64m
 ```
 
-## 7. `shm_size: 1g` 為何是必要的
+## 7. `shm_size` 設計選擇
 
 ```yaml
 shm_size: "${HERMES_SHM_SIZE:-1g}"
 ```
 
-Playwright/Chromium 需要 `/dev/shm` 提供共享記憶體。Docker 預設只給 64 MB，不足會造成：
-
-- 瀏覽器啟動失敗
-- Page crash with `Target closed`
-- 記憶體相關 segfault
-
-預設設為 `1g` 確保 browser tools 可用；不需要瀏覽器自動化時可降為 `64m`。
+預設 `1g` 是讓 Playwright/Chromium 能正常啟動（Docker 預設 `/dev/shm` 只給 64 MB，會造成 browser crash）。不需要 browser tools 時可在 `.env` 設 `HERMES_SHM_SIZE=64m` 節省資源。背後成因與詳細症狀見 [瀏覽器自動化 — 為什麼需要 shm_size 1g](../guides/browser-automation.md#21-為什麼需要-shm_size-1g)。
 
 ## 8. 健康檢查機制
 

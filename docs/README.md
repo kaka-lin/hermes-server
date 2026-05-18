@@ -9,36 +9,10 @@
 - [安裝指南](deployment/setup.md)
 - [CLI 使用手冊](guides/cli-usage.md)
 
-## 2. 常用 Docker 指令
+## 2. 常用指令
 
-```bash
-# 啟動服務（背景執行）
-docker compose up -d
-
-# 重啟 Gateway（修改 ~/.hermes/config.yaml 後執行）
-docker compose restart hermes
-
-# 查看即時 log
-docker compose logs -f hermes
-
-# 查看最近 200 行 log
-docker compose logs --tail 200 hermes
-
-# 進入 Gateway 容器
-docker exec -it hermes bash
-
-# 執行 Hermes CLI 指令
-docker exec -it hermes hermes <command>
-
-# 例：列出 cron job
-docker exec -it hermes hermes cron list
-
-# 例：列出已配對的使用者
-docker exec -it hermes hermes pairing list
-
-# 例：查看 sessions
-docker exec -it hermes hermes sessions list
-```
+- Docker Compose 操作（`up`、`restart`、`logs`、`pull`…）：[專案首頁 README — 常用指令](../README.md#常用指令-common-commands)
+- Hermes CLI（`pairing`、`sessions`、`cron`、`skills`、`auth`…）：[CLI 使用手冊](guides/cli-usage.md)
 
 ## 3. 功能配置指南 (Guides)
 

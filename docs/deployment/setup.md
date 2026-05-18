@@ -4,23 +4,10 @@
 
 ## 1. 本專案快速部署 (docker-compose)
 
-這是針對本專案結構優化過的部署方式，會引導您完成 API key 寫入、平台 token 設定與資料夾權限。
+針對本專案結構優化的部署方式，會引導你完成 API key 寫入、平台 token 設定與資料夾權限。
 
-> [!NOTE]
-> 關於 `docker-compose.yml` 的設計細節與運作原理，請參閱：[Docker Compose 設計細節 (Setup Deep Dive)](setup-deep-dive.md)
-
-### 部署步驟
-
-請參考 [專案首頁 README](../../README.md) 中的 Quick Start 流程，只要透過幾個簡單指令即可完成部署：
-
-```bash
-# 1. 執行 setup wizard
-docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent setup
-
-# 2. 複製設定並啟動
-cp .env.example ~/.hermes/.env
-docker compose up -d
-```
+- **完整 Quick Start 流程**：見 [專案首頁 README — 快速啟動](../../README.md#快速啟動-quick-start)
+- **`docker-compose.yml` 設計細節**：見 [Setup Deep Dive](setup-deep-dive.md)
 
 ## 2. 官方安裝方式 (Official Methods)
 

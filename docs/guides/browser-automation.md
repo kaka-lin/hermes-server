@@ -23,7 +23,7 @@ Hermes Agent 提供一套 browser tool 介面（`browser_navigate`、`browser_cl
 | 適合場景 | 爬蟲、填表、自動化 | 需保持登入的操作（如 Threads、IG 發文） |
 
 > [!IMPORTANT]
-> Local 模式的 Chrome 由 `agent-browser` 管理，是獨立的 Chrome for Testing 實例，**不會繼承** Host Chrome 的 cookies 或登入狀態。若需要操控已登入的網站，請使用 §5 的 CDP 連接模式或 §4.5 的 Camofox persistent session。
+> Local 模式的 Chrome 由 `agent-browser` 管理，是獨立的 Chrome for Testing 實例，**不會繼承** Host Chrome 的 cookies 或登入狀態。若需要操控已登入的網站，請使用 [CDP 連接模式](#5-進階透過-chrome-devtools-protocol-cdp-連接-host-chrome) 或 [Camofox persistent session](#45-camofox-本地反偵測模式)。
 
 ## 2. Docker 環境：系統需求與 `shm_size`
 
@@ -169,9 +169,9 @@ docker run -it --rm \
 
 **設定確認清單：**
 
-1. `toolsets` 包含 `browser`（§3 步驟 1）
+1. `toolsets` 包含 `browser`（見[啟用 browser tools](#3-啟用-browser-tools) 步驟 1）
 2. `browser.cloud_provider` 為 `local`（預設即是）
-3. Docker Compose 的 `shm_size` 為 `1g`（§2）
+3. Docker Compose 的 `shm_size` 為 `1g`（見 [Docker 環境設定](#2-docker-環境系統需求與-shm_size)）
 4. 重啟容器讓設定生效
 
 ```bash
@@ -196,7 +196,7 @@ docker compose restart hermes
 Agent 會自動呼叫 `browser_navigate` → `browser_snapshot` → `browser_click` / `browser_type` 等工具完成操作。頁面內容以 accessibility tree（文字快照）回傳，互動元素會帶有 ref ID（如 `@e1`、`@e2`）。
 
 > [!NOTE]
-> Local 模式的 Chromium 在容器內 headless 運行，你看不到瀏覽器畫面。如果需要即時觀看，請使用 §5 的 CDP 模式連接 Host Chrome，或使用 Camofox 的 VNC 功能（§4.5）。
+> Local 模式的 Chromium 在容器內 headless 運行，你看不到瀏覽器畫面。如果需要即時觀看，請使用 [CDP 模式](#5-進階透過-chrome-devtools-protocol-cdp-連接-host-chrome) 連接 Host Chrome，或使用 [Camofox 的 VNC 功能](#45-camofox-本地反偵測模式)。
 
 ### 4.2 Browserbase 雲端模式
 
@@ -356,7 +356,7 @@ Hermes 執行在 Docker 容器內，要連線到 Mac 上的 Chrome 必須透過 
 
 ## 6. 共用 OpenClaw Browser Profiles
 
-如果你同時運行 OpenClaw and Hermes，可以讓 Hermes 直接連接 OpenClaw 已經開啟並管理好的 Chrome profiles，共用登入狀態。這其實就是 §5 「方法 A」的延伸應用。
+如果你同時運行 OpenClaw and Hermes，可以讓 Hermes 直接連接 OpenClaw 已經開啟並管理好的 Chrome profiles，共用登入狀態。這其實就是 [CDP 連接模式](#5-進階透過-chrome-devtools-protocol-cdp-連接-host-chrome) 的延伸應用。
 
 ### 6.1 前提與準備
 

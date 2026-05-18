@@ -435,7 +435,7 @@ discord:
   require_mention: true
   free_response_channels:
   - '1496924293219487965'
-  - '1503642517088894996'
+  - '1505979982961184908'
   allowed_channels: ''
   auto_thread: false
   reactions: true

@@ -188,13 +188,16 @@ docker exec -it hermes hermes auth remove openrouter
 
 ### 📋 Profile 管理
 
-> ⚠️ 本專案目前還沒實際驗證過 Docker 環境下的多 profile 流程，下列指令僅列出 Hermes CLI 提供的 subcommand 供參考，實際行為（特別是 export / import 與容器隔離的相容性）請自行測試後再使用。
+> [!IMPORTANT]
+> Hermes profile CLI 可在容器內正常使用（list / use / create / export / import 都 OK）。但**官方明文不建議在 Docker 內用 `hermes -p <名稱> gateway run` 跑多個長駐 gateway**（[Hermes Docker — Multi-profile support](https://hermes-agent.nousresearch.com/docs/user-guide/docker#multi-profile-support)：「using Hermes' built-in multi-profile feature is not recommended」）。要 24/7 多 agent 並行，請改用[一個 container 一個獨立 host 資料夾](multi-agent.md#33-推薦架構一個-container-一個-profile各自-bind-mount-獨立-host-資料夾)的模式。
+>
+> 在 Docker 內 `hermes -p ... chat -q "..."` 這類**短暫**呼叫（subagent 用法）仍然可用，因為 gateway 全程只有主帳號這一個。
 
 ```bash
 # 列出 profile
 docker exec -it hermes hermes profile list
 
-# 切換 profile
+# 切換 profile（影響後續 plain `hermes` 指令的預設 profile）
 docker exec -it hermes hermes profile use work
 
 # 建立新 profile（--clone 會複製 config / .env / SOUL.md）
@@ -203,6 +206,9 @@ docker exec -it hermes hermes profile create work --clone
 # 匯出 / 匯入
 docker exec -it hermes hermes profile export work ./work.tar.gz
 docker exec -it hermes hermes profile import ./work.tar.gz
+
+# 對特定 profile 下單次任務（subagent 模式，不啟動長駐 gateway）
+docker exec -it hermes hermes -p work chat -q "幫我跑 X 任務"
 ```
 
 ### 🔍 Insights 與 Logs

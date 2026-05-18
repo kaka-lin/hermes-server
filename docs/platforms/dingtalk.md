@@ -200,6 +200,30 @@ display:
       interim_assistant_messages: false
 ```
 
+### 5.4 主動通知與 Cron 任務 (Home Channel)
+
+若要讓 Cron Jobs 執行完成後將結果主動傳送到 DingTalk，請在 `.env` 設定目標 ID：
+
+```bash
+DINGTALK_HOME_CHANNEL="cidXXXX==" # 預設通知對象的群組 ID (Conversation ID)
+```
+
+> 💡 **提示**：DingTalk 發送主動通知是透過官方的 OpenAPI 直接發起請求，因此**完全不需要**像 LINE 一樣架設公開的 Webhook 隧道 (不需使用 ngrok 或 cloudflared)。
+
+### 5.5 Multi-Agent 背景分身與主動推播 (Webhook 模式)
+
+當透過 `dispatch-agent` 等技能在背景喚醒一個分身（CLI 模式）去執行任務時，該分身由於獨立執行且沒有持續連線的 WebSocket，也沒有使用者訊息帶來的「臨時 session webhook」，因此**無法透過 Gateway 的機制來回覆**。
+
+為了解決這個問題，背景分身在執行 `send_message` 工具時，會依賴你在 `.env` 中設定的自定義機器人 Webhook URL 來對指定群組進行**單向盲發**：
+
+```bash
+# 用於特定群組的「自定義機器人」單向廣播
+# 我們扮演 Client 端主動呼叫釘釘 API，不需架設 Webhook 伺服器
+DINGTALK_WEBHOOK_URL="https://oapi.dingtalk.com/robot/send?access_token=..."
+```
+
+> 💡 **提示**：這是釘釘官方的「自定義群組機器人」功能。你只需要在目標群組的設定中新增自定義機器人並獲取這串 URL 即可。這與 Gateway 的雙向回覆機制是獨立且並存的功能，**專門用於解決 Multi-Agent 架構下缺乏對話上下文的主動回報問題**。
+
 ## 6. 常見問題與除錯 (Troubleshooting)
 
 ### 機器人沒有回應訊息

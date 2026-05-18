@@ -27,6 +27,7 @@ version: 1.0.0
     > **[極度重要：跨平台通行證與發送權限]**
     >
     > 在背景 CLI 模式下執行時，必須依據目標平台給予對應的身分！例如目標為 Discord 時，提取 `DISCORD_BOT_TOKEN` 並加上 `export HERMES_SESSION_PLATFORM=discord`；若目標為 DingTalk，則提取 `DINGTALK_WEBHOOK_URL` 並加上 `export HERMES_SESSION_PLATFORM=dingtalk`。
+    > *(備註：此處的 `DINGTALK_WEBHOOK_URL` 是釘釘提供的 API 網址，分身是作為 Client 去呼叫它以進行單向廣播，完全不需要我們自己架設伺服器或隧道。)*
 
 3. **背景派發任務**
 
@@ -60,7 +61,7 @@ version: 1.0.0
 
     - ❌ **錯誤作法**：要求分身發送至中文名稱頻道，或要求分身執行 `send_message(action='list')` 來查通訊錄（會回傳空清單，導致分身誤判無權限而放棄發送）。
     - ✅ **正確作法 (Discord)**：總指揮應先查好「精確的數字 ID」（例如 `discord:1503642517088894996`），並直接將這串 ID 寫死在派發給分身的 prompt 中。
-    - ✅ **正確作法 (DingTalk Webhook)**：若是使用 Webhook 直發模式的釘釘，目標請**直接寫 `dingtalk`** 即可，絕對不要加上任何 CID，否則系統會因為找不到通訊錄而報錯。讓分身盲發。
+    - ✅ **正確作法 (DingTalk Webhook)**：若是使用 Webhook 直發模式的釘釘 (單向廣播)，目標請**直接寫 `dingtalk`** 即可，絕對不要加上任何 CID，否則系統會因為找不到通訊錄而報錯。讓分身直接對官方 API 盲發。
 
 2. **專案化技能與環境變數解耦**
 

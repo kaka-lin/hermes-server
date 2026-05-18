@@ -523,6 +523,9 @@ gateway:
     dingtalk:
       extra:
         require_mention: true
+      enabled: false
+    discord:
+      enabled: true
 group_sessions_per_user: true
 platform_toolsets:
   cli:
@@ -557,4 +560,4 @@ image_gen:
 DINGTALK_HOME_CHANNEL: cidLbiQUwltTftxMc6IqmG8xw==
 DISCORD_HOME_CHANNEL: 1503642517088894996
 platforms:
-  dingtalk:
+  dingtalk: null

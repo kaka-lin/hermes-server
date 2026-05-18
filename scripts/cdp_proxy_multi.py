@@ -6,7 +6,8 @@ def forward(src, dst):
             data = src.recv(4096)
             if not data: break
             dst.sendall(data)
-    except: pass
+    except:
+        pass
     finally:
         src.close()
         dst.close()
@@ -33,14 +34,18 @@ def start_proxy(local_port, target_ip, target_port):
             try: client.close()
             except: pass
 
+
 if __name__ == "__main__":
     # Magic IP for Docker Desktop host
     HOST_IP = '192.168.65.254'
     
-    # 啟動 9223 (langlive-main)
+    # 啟動 18800 (main port)
+    threading.Thread(target=start_proxy, args=(18800, HOST_IP, 18800), daemon=True).start()
+    
+    # 啟動 others port: 9223 (你可以自己設定)
     threading.Thread(target=start_proxy, args=(9223, HOST_IP, 9223), daemon=True).start()
     
-    # 啟動 9224 (langlive-sms)
+    # 啟動 9224 (你可以自己設定)
     threading.Thread(target=start_proxy, args=(9224, HOST_IP, 9224), daemon=True).start()
     
     while True:

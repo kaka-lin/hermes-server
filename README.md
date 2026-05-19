@@ -150,6 +150,7 @@ docker compose pull && docker compose up -d --build
 
 - [安裝指南](docs/deployment/setup.md)
 - [瀏覽器自動化指南](docs/guides/browser-automation.md)
+- [瀏覽器接線架構（Docker → Mac Chrome）](docs/guides/mac-chrome-cdp-guide.md)
 - [Discord 整合](docs/platforms/discord.md)
 - [常見問題排除](docs/README.md#疑難排解-troubleshooting)
 

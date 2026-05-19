@@ -17,13 +17,15 @@ Hermes Agent 提供一套 browser tool 介面（`browser_navigate`、`browser_cl
 | | Hermes | OpenClaw |
 | --- | --- | --- |
 | 瀏覽器引擎 | 外部（`agent-browser` CLI / 雲端 / CDP） | 外部（Mac Host Chrome） |
-| 橋接方式 | `agent-browser` CLI 透過 CDP 驅動 Chrome | `openclaw node run` 透過自建 Node bridge 驅動 |
+| 橋接方式 | `agent-browser` CLI 透過 CDP 驅動 Chrome | `openclaw node run` 作為 supervisor 啟動並監督 Chrome 子程序 |
 | 是否需要額外安裝 | ✅ 需安裝 `agent-browser` + `agent-browser install` | ✅ 需在 Mac 跑 `openclaw node run` |
 | 登入狀態保持 | 每次 session 獨立（除非用 CDP 或 Camofox persistence） | 直接使用 Mac Chrome 的登入狀態 |
 | 適合場景 | 爬蟲、填表、自動化 | 需保持登入的操作（如 Threads、IG 發文） |
 
 > [!IMPORTANT]
 > Local 模式的 Chrome 由 `agent-browser` 管理，是獨立的 Chrome for Testing 實例，**不會繼承** Host Chrome 的 cookies 或登入狀態。若需要操控已登入的網站，請使用 [CDP 連接模式](#5-進階透過-chrome-devtools-protocol-cdp-連接-host-chrome) 或 [Camofox persistent session](#45-camofox-本地反偵測模式)。
+
+想看 Hermes / OpenClaw 之間 Docker → Mac Chrome 的接線細節（`cdp_proxy.py` 怎麼運作、OpenClaw Node 的真實角色、Chrome 父子程序關係、lazy-load 與 auto-fallback 陷阱），請參閱 [瀏覽器接線架構](mac-chrome-cdp-guide.md)。
 
 ## 2. Docker 環境：系統需求與 `shm_size`
 
@@ -310,6 +312,9 @@ browser:
 
 如果你需要讓 agent 控制 Host 上**已登入**的 Chrome（保留 cookies 等狀態），可使用 CDP 模式。
 
+> [!NOTE]
+> 本節說明操作步驟。接線的底層機制（`cdp_proxy.py` 怎麼運作、為什麼 `cdp_url` 要寫 `127.0.0.1` 而不是 `host.docker.internal`、與 OpenClaw 整合的陷阱）見 [瀏覽器接線架構](mac-chrome-cdp-guide.md)。
+
 ### 5.1 啟動 Host Chrome 的 CDP 服務
 
 要讓 Agent 控制你的 Chrome，你需要開啟遠端除錯（CDP）端口：
@@ -324,10 +329,12 @@ browser:
 
 ### 5.2 設定 Hermes 連接與繞過 Chrome 安全限制
 
-Hermes 執行在 Docker 容器內，要連線到 Mac 上的 Chrome 必須透過 `host.docker.internal`。
+Hermes 執行在 Docker 容器內，要連線到 Mac 上的 Chrome 必須透過 host gateway IP（`192.168.65.254`，等同 `host.docker.internal`）。
 但是，**Chrome 內建防止 DNS Rebinding 的安全機制**，當它看到連線請求的 Host 標頭不是 `127.0.0.1` 或是 `localhost` 時，會**直接拒絕連線**。
 
-為了解決這個問題，我們必須在 Docker 內架設一個「TCP 轉發站 (Proxy)」，欺騙 Chrome 請求是來自本地端。最簡單的方式就是**直接請 Agent 代勞**！
+為了解決這個問題，Hermes 在容器內架設一個 TCP 轉發站 [`cdp_proxy.py`](../../scripts/cdp_proxy.py)。它是**純 byte forwarder**，不解析也不改寫流量——能繞過 DNS Rebinding 不是「欺騙 Chrome」，而是 CDP client 連向容器內 `127.0.0.1:<port>` 時送出的 HTTP `Host` header 自然就寫 `127.0.0.1`，Chrome 直接放行。詳細機制見 [瀏覽器接線架構](mac-chrome-cdp-guide.md)。
+
+最簡單的使用方式就是**直接請 Agent 代勞**！
 
 #### 讓 Agent 自動處理
 
@@ -360,7 +367,10 @@ Hermes 執行在 Docker 容器內，要連線到 Mac 上的 Chrome 必須透過 
 
 ### 6.1 前提與準備
 
-1. **OpenClaw Profiles 已啟動**：在 `openclaw.json` 中設定好 CDP port 並確認瀏覽器已開啟（在 OpenClaw log 中看到 `openclaw browser started`）。
+1. **OpenClaw Profiles 已啟動**：在 `openclaw.json` 中設定好 CDP port，並確認對應 Chrome 已實際啟動（OpenClaw log 中看到 `openclaw browser started`）。
+
+    > [!WARNING]
+    > OpenClaw 是 **lazy-load**：`openclaw node run` 啟動時不會 spawn 任何 Chrome（連預設 profile 也不會）。Profile 必須先在 OpenClaw CLI/UI 被觸發一次才會 spawn 對應的 Chrome。Hermes 無法主動觸發 spawn，profile 沒被喚醒前直接撥 CDP 會 `Connection refused` 或走靜默 fallback（詳見後面「常見錯誤與限制」）。完整說明見 [瀏覽器接線架構 — Lazy-load 行為](mac-chrome-cdp-guide.md#42-lazy-load-行為)。
 
 2. **準備 Mac Chrome 視窗**：
     - 確保 **目標 Profile 的 Chrome 視窗保持開啟**。
@@ -374,7 +384,7 @@ Hermes 執行在 Docker 容器內，要連線到 Mac 上的 Chrome 必須透過 
     "defaultProfile": "openclaw",
     "profiles": {
         "default": { "cdpPort": 18800 },
-        "worker1": { "cdpPort": 9223 },
+        "helper": { "cdpPort": 9223 },
     }
 }
 ```
@@ -391,8 +401,8 @@ Hermes 執行在 Docker 容器內，要連線到 Mac 上的 Chrome 必須透過 
 # 走預設 openclaw profile（Hermes 內建 browser tools）
 幫我用 browser 打開 https://example.com
 
-# 走特定的 profile (例如 worker1)
-請用 worker1 profile 開 https://threads.net 幫我發文
+# 走特定的 profile (例如 helper)
+請用 helper profile 開 https://threads.net 幫我發文
 ```
 
 > [!TIP]
@@ -400,7 +410,7 @@ Hermes 執行在 Docker 容器內，要連線到 Mac 上的 Chrome 必須透過 
 
 ### 6.3 手動連線操作（進階）
 
-如果你想手動設定，假設要用 `langlive-main` Profile (Port: 9223) 來開網頁：
+如果你想手動設定，假設要用 `helper` Profile (Port: 9223) 來開網頁：
 
 1. **啟動本機轉發站 (Proxy)：**
 
@@ -422,12 +432,12 @@ Hermes 執行在 Docker 容器內，要連線到 Mac 上的 Chrome 必須透過 
 
     之後 Agent 呼叫 `browser_navigate` 時，指令就會順著這條管線傳遞：
 
-    > **Hermes 工具 → 轉發站 (127.0.0.1:9223) → Mac 上的 OpenClaw (langlive-main)**
+    > **Hermes 工具 → 轉發站 (容器內 127.0.0.1:9223) → 192.168.65.254:9223 → Mac 上的 Chrome（由 OpenClaw 啟動的 helper profile）**
 
 | Profile | CDP Port | 從容器內的連線方式 | 使用工具 |
 | --- | --- | --- | --- |
 | `openclaw`（預設） | 18800 | `browser.cdp_url` 自動連接 | Hermes browser tools |
-| `worker1` | 9223 | `agent-browser --cdp "http://127.0.0.1:9223"` | terminal tool |
+| `helper` | 9223 | `agent-browser --cdp "http://127.0.0.1:9223"` | terminal tool |
 
 > [!TIP]
 > 非預設 profile 走的是 terminal tool → `agent-browser` CLI，不是 Hermes 內建的 browser tools。操作方式（snapshot、click 等）一樣，只是 agent 會用 `agent-browser snapshot` 而非 `browser_snapshot`。
@@ -457,6 +467,7 @@ Hermes 執行在 Docker 容器內，要連線到 Mac 上的 Chrome 必須透過 
 - **Target closed / 崩潰**：如果在跑 Browser 時突然失敗或出現 `Target closed`，通常是記憶體不足。請確認 `.env` 中的 `HERMES_MEMORY_LIMIT` 至少設為 `4G`，且 `docker-compose.yml` 中分配了 `shm_size: 1g`。
 - **文字互動限制**：Agent 依賴網頁的 Accessibility Tree（無障礙樹狀結構）來理解頁面，對於某些缺乏語意標籤的重度單頁應用程式 (SPA) 可能較難精準操作。
 - **防護驗證碼**：部分嚴格的網站（如 Cloudflare 防護）可能會阻擋無頭瀏覽器。遇到此情況時，請使用 **CDP 模式**（也就是前兩節教的 TCP 轉發站）來接管你的真實 Chrome，通常能順利繞過驗證。
+- **CDP 連不上時的靜默 fallback**：當 `cdp_url` 對應的 Chrome 沒在跑（例如 OpenClaw profile 還沒被喚醒、或 Mac Chrome 整個關了），Hermes **不會回報錯誤**，會悄悄起一個容器內 headless Chromium 完成任務。後果：Mac 桌面看不到視窗、抓到的網頁是**未登入版本**。Hermes log 看到 `Local Chromium browser session started` 字樣就是 fallback 觸發了。完整描述見 [瀏覽器接線架構 — Hermes 自動退回內部 headless 的陷阱](mac-chrome-cdp-guide.md#44-hermes-自動退回內部-headless-的陷阱)。
 
 ## 9. 相關參考
 

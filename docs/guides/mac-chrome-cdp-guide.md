@@ -211,8 +211,17 @@ OpenClaw 在這個組合裡退化成「**多 profile 的 Chrome supervisor（laz
 
 ## 5. 什麼時候可以不用 OpenClaw Node
 
+> [!IMPORTANT]
+> **拿掉 Node = 拋棄 OpenClaw 自己的 browser 能力。** OpenClaw 的 `browser` 工具綁死走 Gateway → Node → Chrome 這條反向通道。一旦你殺掉 Node 改用 launcher script eager-spawn Chrome：
+>
+> - ✅ Hermes 仍能正常工作（直接撥 CDP，本來就沒用到 Node 的反向通道）。
+> - ❌ OpenClaw 自己的 Control UI / 接的 Channel 操作 browser 會壞掉（Gateway 找不到 Node 就無法觸及 Chrome，即使 Chrome 還在跑）。
+>
+> 換句話說，這個方案適合「**只用 Hermes 操作 browser**」的人。若你還會透過 OpenClaw 的介面操作 browser，請保留 Node 走「先戳 OpenClaw 喚醒 profile」那條路。
+
 如果你的需求滿足以下條件，可以考慮拿掉 OpenClaw：
 
+- 只透過 Hermes 操作 browser，不用 OpenClaw 自己的 browser 工具。
 - 希望所有 profile **一啟動就 ready**，不要 OpenClaw 的 lazy-load。
 - 願意自己處理 Chrome 啟動參數與 supervisor 角色（process crash 不會自動拉起）。
 - 不需要 OpenClaw 的 pairing、UI、跨網段功能。
@@ -226,30 +235,69 @@ OpenClaw 的「魔法」其實只是 `chrome --remote-debugging-port=N --user-da
   --no-first-run ...
 ```
 
-所以你可以寫一個 shell script 直接取代 OpenClaw Node，**沿用既有的 user-data-dir**（登入狀態全部保留）：
+本專案內建這支腳本：[`scripts/host/start-browsers.sh`](../../scripts/host/start-browsers.sh)。Profile 與 port 對應寫在同目錄的 `browsers.conf`（純文字，每行 `port:profile_name`）。
+
+第一次使用先複製範本：
 
 ```bash
-#!/bin/bash
-# ~/bin/start-browsers.sh
-CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-DATA="$HOME/.openclaw/browser"
-
-"$CHROME" --remote-debugging-port=18800 --user-data-dir="$DATA/openclaw/user-data" &
-"$CHROME" --remote-debugging-port=9223  --user-data-dir="$DATA/helper/user-data" &
-"$CHROME" --remote-debugging-port=9224  --user-data-dir="$DATA/assistant/user-data" &
-
-wait
+cp scripts/host/browsers.conf.example scripts/host/browsers.conf
+# 編輯 browsers.conf 改成你自己的 port/profile
 ```
 
-對比 OpenClaw：
+```bash
+# 啟動所有 profile
+./scripts/host/start-browsers.sh
+./scripts/host/start-browsers.sh start    # 同上，顯式寫法
 
-| | OpenClaw Node | 自寫 launcher script |
+# 看誰 listen
+./scripts/host/start-browsers.sh status
+
+# 全部關掉（不用記 pkill 指令）
+./scripts/host/start-browsers.sh stop
+
+# 重啟
+./scripts/host/start-browsers.sh restart
+```
+
+特性：
+
+- **Idempotent**：已 listen 的 port 跳過，不會重複 spawn。
+- **Polling**：`start` 會等到 Chrome 真的 bind port 才回報 `[ok]`，最多 15 s/port。
+- **Stop 精準**：用 `pgrep -f "remote-debugging-port=<port>"` 只殺對應的 Chrome，不會誤殺其他 Chrome 實體。
+- **Profile 可改**：編輯 `browsers.conf`，或設 `BROWSERS_CONFIG=/path/to/other.conf` 換不同 set。
+
+腳本實際下的指令長這樣（每個 profile 各一個）：
+
+```bash
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
+  --remote-debugging-port=18800 \
+  --user-data-dir="$HOME/.openclaw/browser/openclaw/user-data" \
+  --no-first-run \
+  --no-default-browser-check \
+  --remote-allow-origins='*' &
+```
+
+關鍵 flag：
+
+- `--remote-debugging-port=N` / `--user-data-dir=PATH`：對應 profile 的 CDP port 與資料目錄（沿用 OpenClaw 既有路徑保留登入狀態）。
+- `--no-first-run`：跳過首次啟動精靈。實測 OpenClaw 也帶這個。
+- `--no-default-browser-check`：跳過「要設為預設瀏覽器嗎」對話框。
+- `--remote-allow-origins='*'`：Chrome 111+ WebSocket CDP 連線會驗 `Origin` header，不帶可能被擋。
+
+Chrome 在腳本退出後會被 launchd 接管繼續活著，關終端機不會掛——只有登出 / reboot 或執行 `stop` 才會結束。
+
+兩個模式下，**誰能用 browser**：
+
+| | OpenClaw Node 模式 | 自寫 launcher script 模式 |
 | --- | --- | --- |
-| 啟動策略 | Lazy（要被觸發才 spawn） | Eager（一執行就全開） |
-| Process supervisor | ✓ 父程序，kill Node 連帶 cleanup | ✗ 需自己用 launchd plist / pm2 補 |
-| 多 profile UI | ✓ | ✗ |
-| Pairing / 跨網段 | ✓ | ✗ |
-| Hermes 觸發後 fallback 風險 | 高（profile 沒喚醒就走 internal headless） | 低（所有 profile 都已在 listen） |
+| **OpenClaw**（Control UI / 接的 Channel） | ✓ | ✗（沒了 Node，Gateway 撥不到 Chrome） |
+| **Hermes** | ✓ 但 profile 需先被 OpenClaw 喚醒；否則走 internal headless fallback | ✓ 所有 profile eager 起來就 ready |
+
+其他運維差異（不影響 browser 能不能用，但影響怎麼維護）：
+
+- **啟動策略**：Node = lazy（被觸發才 spawn）／launcher = eager（一執行就全開）。
+- **Process supervisor**：Node 自帶（kill Node 連帶 cleanup 子 Chrome）／launcher 沒有，要自己用 launchd plist / pm2 補。
+- **多 profile UI / pairing / 跨網段**：Node 提供／launcher 無。
 
 只要你有兩個以上 profile **且**會頻繁切換，自寫 launcher 反而比 OpenClaw 順手；單一 profile 場景則用什麼都差不多。
 

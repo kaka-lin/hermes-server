@@ -51,3 +51,6 @@ node_modules/
 dist/
 build/
 .npm/
+
+# config
+browsers.conf

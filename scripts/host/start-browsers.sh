@@ -37,7 +37,7 @@ load_profiles() {
   fi
 
   PROFILES=()
-  while IFS= read -r line; do
+  while IFS= read -r line || [[ -n "$line" ]]; do
     [[ "$line" =~ ^[[:space:]]*# ]] && continue
     [[ -z "${line// }" ]] && continue
     PROFILES+=("$line")

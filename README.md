@@ -106,10 +106,17 @@ Compose 編排選項透過此目錄下的 `.env` 設定。完整變數清單請�
 
 ## 瀏覽器自動化 (Browser Automation)
 
+> 詳見 [瀏覽器自動化指南](docs/guides/browser-automation.md)
+
 使用 Playwright/Chromium 工具時需要 `shm_size: 1g`（已預設啟用）。
 不使用 Browser Tools 時可在 Repo `.env` 設定 `HERMES_SHM_SIZE=64m` 節省資源。
 
-> 詳見 [瀏覽器自動化指南](docs/guides/browser-automation.md)
+Mac 上需要以多個 Chrome profile 透過 CDP 給 agent 使用時，有兩種做法：
+
+- **OpenClaw Node**（需另外部署 [openclaw-server](https://github.com/kaka-lin/openclaw-server)）：由 Node 當 Chrome supervisor，採 lazy-load，profile 第一次被使用時才 spawn。
+- **本專案的 [`scripts/host/start-browsers.sh`](scripts/host/start-browsers.sh)（推薦）**：在 host 端 eager 啟動／停止／檢查多組獨立 Chrome 實例，不依賴 OpenClaw，避免 lazy-load 與 fallback 陷阱。Profile 與 port 對應寫在 `scripts/host/browsers.conf`。
+
+  > 差異比較與選擇依據見： [瀏覽器接線架構（Docker → Mac Chrome）](docs/guides/mac-chrome-cdp-guide.md)。
 
 ## 資源需求 (Resource Requirements)
 

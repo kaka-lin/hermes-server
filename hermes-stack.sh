@@ -242,11 +242,13 @@ cmd_new() {
   echo "    gateway  : $gwport"
   echo "    dashboard: $dashport"
 
-  # 2. 建資料夾 + clone 主 agent 的 runtime 設定
+  # 2. 建資料夾 + clone 主 agent 的 runtime 設定。
+  #    刻意不複製 SOUL.md：那是 agent 身份（system prompt slot #1），新分身應自己定義，
+  #    靜默繼承主 agent 人格是地雷（見手動步驟）。.env/config.yaml 是基礎設施，給個 baseline 再改。
   [[ -d "$main_data" ]] || die "主 agent data dir 不存在：${main_data}（無法 clone）"
   mkdir -p "$data_dir"
   local f
-  for f in .env config.yaml SOUL.md; do
+  for f in .env config.yaml; do
     if [[ -f "$main_data/$f" ]]; then
       cp "$main_data/$f" "$data_dir/$f"
       echo "    clone    : $f"
@@ -280,11 +282,13 @@ EOF
   cat <<EOF
 
 完成。接下來的手動步驟：
-  1. 編輯 $data_dir/.env
+  1. 撰寫 $data_dir/SOUL.md
+     這個分身的身份 / system prompt（new 不從主 agent 複製，新 agent 自己定義）。
+  2. 編輯 $data_dir/.env
      填這個分身自己的 platform token / allowlist / API key。
-  2.（用瀏覽器才需要）編輯 $data_dir/config.yaml
+  3.（用瀏覽器才需要）編輯 $data_dir/config.yaml
      把 browser.cdp_url 改成這個分身專屬的 CDP port。
-  3. 啟動：
+  4. 啟動：
      $0 up $name
 EOF
 }

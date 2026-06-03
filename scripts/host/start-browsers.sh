@@ -3,7 +3,9 @@
 # start-browsers.sh — 管理 host 端獨立 Chrome 實體（CDP-based agent control）
 #
 # 為每個 profile 啟動一個獨立的 Chrome，各自綁定 CDP debug port，
-# 沿用 OpenClaw 既有的 user-data-dir 保留登入狀態。
+# user-data-dir 預設放在 Hermes 自己的 namespace（~/.hermes/browser），
+# 每個 profile 第一次啟動是全新空白 Chrome，需手動登入一次。
+# 若要沿用 OpenClaw 既有 profile（保留登入狀態），見下方 DATA_DIR 說明。
 # 此腳本可獨立取代 OpenClaw Node 的 Chrome lifecycle 功能。
 #
 # Usage:
@@ -21,7 +23,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG="${BROWSERS_CONFIG:-$SCRIPT_DIR/browsers.conf}"
 
 CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-DATA_DIR="$HOME/.openclaw/browser"
+
+# Profile 的 user-data-dir 根目錄：$DATA_DIR/<profile>/user-data
+# 預設用 Hermes 自己的 namespace（全新 profile，第一次啟動需手動登入）。
+# 若要沿用 OpenClaw 既有 profile（保留 Threads/IG 登入狀態），改成：
+#   DATA_DIR="$HOME/.openclaw/browser"
+DATA_DIR="$HOME/.hermes/browser"
 
 # ---- Helpers ----
 

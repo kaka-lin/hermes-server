@@ -265,13 +265,14 @@ cp scripts/host/browsers.conf.example scripts/host/browsers.conf
 - **Polling**：`start` 會等到 Chrome 真的 bind port 才回報 `[ok]`，最多 15 s/port。
 - **Stop 精準**：用 `pgrep -f "remote-debugging-port=<port>"` 只殺對應的 Chrome，不會誤殺其他 Chrome 實體。
 - **Profile 可改**：編輯 `browsers.conf`，或設 `BROWSERS_CONFIG=/path/to/other.conf` 換不同 set。
+- **資料目錄可改**：profile 的 user-data-dir 預設在 `~/.hermes/browser/<profile>/user-data`（Hermes 自己的 namespace，全新 profile 第一次需手動登入）。要沿用 OpenClaw 既有 profile 的登入狀態，把 script 開頭的 `DATA_DIR` 改成 `~/.openclaw/browser`。
 
 腳本實際下的指令長這樣（每個 profile 各一個）：
 
 ```bash
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
   --remote-debugging-port=18800 \
-  --user-data-dir="$HOME/.openclaw/browser/openclaw/user-data" \
+  --user-data-dir="$HOME/.hermes/browser/<profile>/user-data" \
   --no-first-run \
   --no-default-browser-check \
   --remote-allow-origins='*' &
@@ -279,7 +280,7 @@ cp scripts/host/browsers.conf.example scripts/host/browsers.conf
 
 關鍵 flag：
 
-- `--remote-debugging-port=N` / `--user-data-dir=PATH`：對應 profile 的 CDP port 與資料目錄（沿用 OpenClaw 既有路徑保留登入狀態）。
+- `--remote-debugging-port=N` / `--user-data-dir=PATH`：對應 profile 的 CDP port 與資料目錄。預設根目錄是 `~/.hermes/browser`（Hermes 自己的 namespace，全新 profile 第一次需手動登入）；若想沿用 OpenClaw 既有 profile 保留登入狀態，把 script 開頭的 `DATA_DIR` 改成 `~/.openclaw/browser`。
 - `--no-first-run`：跳過首次啟動精靈。實測 OpenClaw 也帶這個。
 - `--no-default-browser-check`：跳過「要設為預設瀏覽器嗎」對話框。
 - `--remote-allow-origins='*'`：Chrome 111+ WebSocket CDP 連線會驗 `Origin` header，不帶可能被擋。

@@ -11,6 +11,6 @@
 # 可用 BROWSERS_CONFIG=/path/to/other.conf 環境變數覆寫此檔位置。
 
 # 第一個 = main agent（cdp_url 預設指向）；其餘給 sub-agent 在 runtime 切換。
-9222:main
-9223:helper
-9224:assistant
+9223:main
+9224:helper
+9225:assistant

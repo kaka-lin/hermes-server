@@ -241,9 +241,9 @@ OpenClaw 的「魔法」其實只是 `chrome --remote-debugging-port=N --user-da
 `browsers.conf` 是 host 端 `start-browsers.sh` 與容器內 [`cdp_proxy.py`](../../scripts/cdp_proxy.py) **共用的單一 port 來源**：start-browsers.sh 依它啟動 Chrome、cdp_proxy.py 依它架轉發，兩邊永遠對齊。慣例上**第一個 entry 當 main agent**（`config.yaml` 的 `cdp_url` 指向它），其餘留給 sub-agent 在 runtime 用 `/browser connect` 或讓 agent 自行切換：
 
 ```text
-9222:main
-9223:helper
-9224:assistant
+9223:main
+9224:helper
+9225:assistant
 ```
 
 > [!NOTE]
@@ -283,7 +283,7 @@ cp scripts/host/browsers.conf.example scripts/host/browsers.conf
 
 ```bash
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
-  --remote-debugging-port=18800 \
+  --remote-debugging-port=9223 \
   --user-data-dir="$HOME/.hermes/browser/<profile>/user-data" \
   --no-first-run \
   --no-default-browser-check \

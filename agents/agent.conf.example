@@ -1,0 +1,23 @@
+# Hermes 分身 agent 的 compose 編排設定範本。
+#
+# 一般不用手動寫：執行 `./hermes-stack.sh new <name>` 會自動產生
+# agents/<name>.conf（含自動挑好的 port）。這份範本只是說明欄位格式，
+# 供手動建立或排錯時參考。
+#
+# 注意：
+#   - 這是「compose 編排層」，跟 runtime 的 .env / config.yaml 不同層
+#     （runtime 那兩個在 data dir ~/.hermes-<name>/，由 new 從主 agent clone）。
+#   - 真檔 agents/<name>.conf 已被 agents/.gitignore 忽略（含絕對路徑/個人化）。
+#   - 每個分身的 HERMES_CONTAINER_NAME 必須唯一，否則兩個 stack 會撞容器名。
+#   - HERMES_DATA_DIR 用 ${HOME} 即可，腳本 source .conf 時會展開。
+
+# 這個分身在 host 上的獨立資料夾（掛載到容器內 /opt/data）
+HERMES_DATA_DIR=${HOME}/.hermes-<name>
+
+# 容器名稱（全域唯一）
+HERMES_CONTAINER_NAME=hermes-<name>
+HERMES_DASHBOARD_CONTAINER_NAME=hermes-<name>-dashboard
+
+# 對外 port（須與其他 agent 不衝突；避開瀏覽器 CDP 的 9223-9225）
+HERMES_GATEWAY_PORT=8643
+HERMES_DASHBOARD_PORT=9120

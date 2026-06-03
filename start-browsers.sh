@@ -9,10 +9,10 @@
 # 此腳本可獨立取代 OpenClaw Node 的 Chrome lifecycle 功能。
 #
 # Usage:
-#   bash scripts/host/start-browsers.sh [start|stop|status|restart]
+#   bash start-browsers.sh [start|stop|status|restart]
 #   (無參數 = start)
 #
-# Profile 設定: scripts/host/browsers.conf
+# Profile 設定: browsers.conf（與本腳本同層）
 #   可用 BROWSERS_CONFIG=/path/to/other.conf 環境變數覆寫
 #
 # 參考: docs/guides/mac-chrome-cdp-guide.md

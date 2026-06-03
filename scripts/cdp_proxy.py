@@ -7,9 +7,11 @@ Connecting through ``127.0.0.1`` makes Chrome's DNS-rebinding check pass,
 because the HTTP ``Host`` header becomes ``127.0.0.1`` — the proxy never parses
 or rewrites payloads.
 
-Ports come from ``scripts/host/browsers.conf`` (the same file start-browsers.sh
-reads on the host), so the port list lives in one place. Optional CLI arguments
-override the config file for ad-hoc one-off forwards.
+Ports come from ``scripts/host/browsers.conf`` inside the data dir (relative to
+this script). ``hermes-stack.sh new`` copies it there from the repo-root
+``browsers.conf`` that start-browsers.sh reads, so the host launcher and the
+in-container forwarder share one port list. Optional CLI arguments override the
+config file for ad-hoc one-off forwards.
 
 Usage:
     python3 cdp_proxy.py                 # forward every port in browsers.conf
@@ -87,7 +89,7 @@ def start_proxy(local_port: int, target_ip: str, target_port: int) -> None:
 def load_ports_from_config(path: Path) -> list[int]:
     """Read CDP ports from a browsers.conf file.
 
-    The file uses ``port:profile_name`` lines (see scripts/host/browsers.conf);
+    The file uses ``port:profile_name`` lines (see browsers.conf);
     only the port is needed here. Comment lines (starting with ``#``) and blank
     lines are ignored.
 

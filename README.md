@@ -114,7 +114,7 @@ Compose 編排選項透過此目錄下的 `.env` 設定。完整變數清單請�
 Mac 上需要以多個 Chrome profile 透過 CDP 給 agent 使用時，有兩種做法：
 
 - **OpenClaw Node**（需另外部署 [openclaw-server](https://github.com/kaka-lin/openclaw-server)）：由 Node 當 Chrome supervisor，採 lazy-load，profile 第一次被使用時才 spawn。
-- **本專案的 [`scripts/host/start-browsers.sh`](scripts/host/start-browsers.sh)（推薦）**：在 host 端 eager 啟動／停止／檢查多組獨立 Chrome 實例，不依賴 OpenClaw，避免 lazy-load 與 fallback 陷阱。Profile 與 port 對應寫在 `scripts/host/browsers.conf`。
+- **本專案的 [`start-browsers.sh`](start-browsers.sh)（推薦）**：在 host 端 eager 啟動／停止／檢查多組獨立 Chrome 實例，不依賴 OpenClaw，避免 lazy-load 與 fallback 陷阱。Profile 與 port 對應寫在同層的 `browsers.conf`。
 
   > 差異比較與選擇依據見： [瀏覽器接線架構（Docker → Mac Chrome）](docs/guides/mac-chrome-cdp-guide.md)。
 
@@ -150,6 +150,20 @@ docker compose down
 # 更新 image 與重啟服務（拉取最新 image 並重新建置客製化部分）
 docker compose pull && docker compose up -d --build
 ```
+
+## 多 Agent 管理 (Multi-Agent)
+
+需要多個 agent 同時長駐（各自 24/7 接訊息、互不干擾）時，用 [`hermes-stack.sh`](./hermes-stack.sh)。它沿用同一份 `docker-compose.yml`，靠 `docker compose -p <name>` 把每個 agent 隔離成獨立 stack；分身的 port / 容器名 / data dir 寫在各自的 `agents/<name>.conf`。
+
+```bash
+./hermes-stack.sh up              # 主 agent (~/.hermes)
+./hermes-stack.sh new coder       # scaffold 新分身（clone 主 agent，自動挑 port）
+./hermes-stack.sh up coder        # 啟動分身
+./hermes-stack.sh up all          # 主 agent + 所有分身一次拉起
+./hermes-stack.sh status          # 所有 agent 狀態總覽
+```
+
+> 機制、`new` 流程與注意事項見 [Multi-Agent — 用 hermes-stack.sh 管理多容器](docs/guides/multi-agent.md#36-用-hermes-stacksh-管理多容器)。
 
 ## 完整文件 (Documentation)
 

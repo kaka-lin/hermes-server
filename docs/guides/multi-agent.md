@@ -311,6 +311,41 @@ networks:
     docker exec -it hermes-agent-line hermes setup
     ```
 
+## 3.6 用 hermes-stack.sh 管理多容器
+
+[`hermes-stack.sh`](../../hermes-stack.sh) 把上面 §3.3 的推薦架構與 §3.5 的新增 SOP 包成一支腳本，**不修改 `docker-compose.yml`**。它的做法是：同一份已被 env 參數化的 compose 檔，搭配 `docker compose -p <project>` 做命名空間隔離，每個 agent 一個獨立 stack。
+
+- **主 agent**：`~/.hermes`，project = `hermes`，吃 compose 預設 port / 容器名，不需要設定檔。
+- **分身 agent**：`~/.hermes-<name>`，project = `hermes-<name>`，編排設定讀 [`agents/<name>.conf`](../../agents/agent.conf.example)。
+
+`agents/<name>.conf` 只放**編排設定**（port、容器名、data dir 路徑）；分身的 runtime 設定（`config.yaml`、含金鑰的 `.env`）一律留在它自己的 data dir，由 `new` 從主 agent clone 過去。`.conf` 與 runtime 的 `.env` 是不同層，用不同副檔名避免混淆。真檔 `agents/*.conf` 已被 gitignore，只 commit `agent.conf.example` 範本。
+
+### 指令
+
+```bash
+./hermes-stack.sh up [<name>|all]       # 啟動（無參數 = 主 agent）
+./hermes-stack.sh down [<name>|all]     # 停止
+./hermes-stack.sh restart [<name>|all]  # 重啟 process（不重建容器）
+./hermes-stack.sh logs [<name>]         # 跟著看 log（無參數 = 主 agent）
+./hermes-stack.sh status [<name>]       # 無參數 = 所有 agent 狀態總覽
+./hermes-stack.sh ls                    # 列出已設定的 agent 與其 port
+./hermes-stack.sh new <name> [--force]  # scaffold 新分身（clone 主 agent 設定）
+```
+
+> [!NOTE]
+> 主 agent 用 project `hermes`，與你直接 `docker compose up -d`（project = 目錄名 `hermes-server`）是不同 stack。第一次改用本腳本前，先 `docker compose down` 把舊 stack 收掉，避免兩邊都想建名為 `hermes` 的容器而撞名。
+
+### `new <name>` 做的事（自動化 §3.5）
+
+1. 驗證名稱（`[a-z0-9-]`、不可叫 `main`）、確認 `agents/<name>.conf` 與 `~/.hermes-<name>` 不存在（`--force` 才覆寫）。
+2. 掃描主 agent 預設與現有 `agents/*.conf`，自動挑一組沒被佔用、且避開 CDP `9223-9225` 的 gateway / dashboard port。
+3. 建 `~/.hermes-<name>/`，**clone** 主 agent 的 `.env` / `config.yaml` / `SOUL.md`。
+4. 複製容器內 runtime 腳本到 data dir，保留 `cdp_proxy.py` 需要的巢狀結構：`scripts/cdp_proxy.py`（來源 repo `scripts/`）與 `scripts/host/browsers.conf`（來源 repo root 的 `browsers.conf`，是 [`cdp_proxy.py`](../../scripts/cdp_proxy.py) 讀 port 的來源，見 [瀏覽器接線架構](mac-chrome-cdp-guide.md)）。
+5. 產生 `agents/<name>.conf`（絕對路徑 data dir、自動挑的 port、唯一容器名）。
+6. 印出剩下的手動步驟：去分身的 `.env` 填它自己的 platform token / allowlist / API key，必要時改 `config.yaml` 的 `browser.cdp_url`，然後 `./hermes-stack.sh up <name>`。
+
+`new` **不複製 skills**——分身用 image 內建 skills 起步，要哪個客製 skill 再自行安裝（避免與「skills 目錄需可寫、且 role-specific」打架）。
+
 ## 4. 相關參考
 
 - [Hermes 官方 — Profiles](https://hermes-agent.nousresearch.com/docs/user-guide/profiles) — `-p` flag、`profile create --clone`、host 上跑多 gateway

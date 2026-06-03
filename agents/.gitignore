@@ -1,0 +1,4 @@
+# 每個分身的 compose 編排設定（含機器專屬的絕對路徑 + port）。
+# 同 repo 既有慣例：commit 範本（*.conf.example），ignore 真檔（*.conf）。
+*.conf
+!*.conf.example

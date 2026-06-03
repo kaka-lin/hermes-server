@@ -334,6 +334,9 @@ Hermes 執行在 Docker 容器內，要連線到 Mac 上的 Chrome 必須透過 
 
 為了解決這個問題，Hermes 在容器內架設一個 TCP 轉發站 [`cdp_proxy.py`](../../scripts/cdp_proxy.py)。它是**純 byte forwarder**，不解析也不改寫流量——能繞過 DNS Rebinding 不是「欺騙 Chrome」，而是 CDP client 連向容器內 `127.0.0.1:<port>` 時送出的 HTTP `Host` header 自然就寫 `127.0.0.1`，Chrome 直接放行。詳細機制見 [瀏覽器接線架構](mac-chrome-cdp-guide.md)。
 
+> [!NOTE]
+> `cdp_proxy.py` 會由 docker-compose 隨 gateway 一併啟動，並讀取 [`scripts/host/browsers.conf`](../../scripts/host/browsers.conf)，**為其中每個 port 自動架好轉發**（前提：`browsers.conf` 已在掛載進容器的 data dir 內）。所以 conf 裡已列的 port 不必再手動啟動轉發站；下面的手動 `docker exec ... cdp_proxy.py <port>` 只用於臨時補一個 conf 沒列的 port。
+
 最簡單的使用方式就是**直接請 Agent 代勞**！
 
 #### 讓 Agent 自動處理

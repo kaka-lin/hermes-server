@@ -72,6 +72,7 @@ Hermes 把問題外包給 Docker 網路層：
 - Docker Desktop 預留 `192.168.65.254`（等同 `host.docker.internal`）讓容器反查 host。
 - 為了繞過 Chrome 的 DNS rebinding 防護，Hermes 在容器內額外起一個 [`cdp_proxy.py`](../../scripts/cdp_proxy.py) —— 它是個**純 TCP byte forwarder**，在容器內 `127.0.0.1:<port>` 開 listener，把流量原封不動轉到 `192.168.65.254:<port>`。
 - 這樣 CDP client 連到 `127.0.0.1:<port>` 時，送出的 HTTP `Host` header 自然就寫 `127.0.0.1:<port>`，Chrome 的 DNS rebinding 檢查直接放行——proxy 不用改寫任何封包內容。
+- `cdp_proxy.py` 由 docker-compose 在容器啟動時一併拉起（`python3 .../cdp_proxy.py & exec hermes gateway run`），並讀取 `scripts/host/browsers.conf`——與 host 端 `start-browsers.sh` 共用同一份 port 清單，會為 conf 裡每個 port 各開一條轉發，無需手動逐一指定。
 
 買到的東西：簡單，沒有 daemon、沒有 pairing。
 代價：對網路拓樸有要求（基本上只適合本機或內網），CDP 本身幾乎沒做認證。
@@ -236,6 +237,17 @@ OpenClaw 的「魔法」其實只是 `chrome --remote-debugging-port=N --user-da
 ```
 
 本專案內建這支腳本：[`scripts/host/start-browsers.sh`](../../scripts/host/start-browsers.sh)。Profile 與 port 對應寫在同目錄的 `browsers.conf`（純文字，每行 `port:profile_name`）。
+
+`browsers.conf` 是 host 端 `start-browsers.sh` 與容器內 [`cdp_proxy.py`](../../scripts/cdp_proxy.py) **共用的單一 port 來源**：start-browsers.sh 依它啟動 Chrome、cdp_proxy.py 依它架轉發，兩邊永遠對齊。慣例上**第一個 entry 當 main agent**（`config.yaml` 的 `cdp_url` 指向它），其餘留給 sub-agent 在 runtime 用 `/browser connect` 或讓 agent 自行切換：
+
+```text
+9222:main
+9223:helper
+9224:assistant
+```
+
+> [!NOTE]
+> 註解（`#` 開頭）與空行會被忽略，但**不支援行內註解**——`port:name` 後面別接 `#`，否則 profile name 會把整段註解吃進去（`start-browsers.sh` 與 `cdp_proxy.py` 的解析方式相同）。
 
 第一次使用先複製範本：
 

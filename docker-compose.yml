@@ -4,7 +4,7 @@ services:
     image: kakalin/hermes-agent:latest
     container_name: "${HERMES_CONTAINER_NAME:-hermes}"
     restart: unless-stopped
-    command: [ "bash", "-c", "python3 /opt/data/scripts/cdp_proxy_multi.py & exec hermes gateway run" ]
+    command: [ "bash", "-c", "python3 /opt/data/scripts/cdp_proxy.py & exec hermes gateway run" ]
     ports:
       - "${HERMES_GATEWAY_PORT:-8642}:8642"
     volumes: &hermes-volumes

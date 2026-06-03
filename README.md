@@ -156,11 +156,15 @@ docker compose pull && docker compose up -d --build
 需要多個 agent 同時長駐（各自 24/7 接訊息、互不干擾）時，用 [`hermes-stack.sh`](./hermes-stack.sh)。它沿用同一份 `docker-compose.yml`，靠 `docker compose -p <name>` 把每個 agent 隔離成獨立 stack；分身的 port / 容器名 / data dir 寫在各自的 `agents/<name>.conf`。
 
 ```bash
-./hermes-stack.sh up              # 主 agent (~/.hermes)
+./hermes-stack.sh up              # 啟動主 agent (~/.hermes)
 ./hermes-stack.sh new coder       # scaffold 新分身（clone 主 agent，自動挑 port）
 ./hermes-stack.sh up coder        # 啟動分身
 ./hermes-stack.sh up all          # 主 agent + 所有分身一次拉起
-./hermes-stack.sh status          # 所有 agent 狀態總覽
+./hermes-stack.sh down [coder|all] # 停止並移除容器（無參數 = 主 agent）
+./hermes-stack.sh restart [coder]  # 重啟 process（不重建容器）
+./hermes-stack.sh logs [coder]     # 跟著看 log（無參數 = 主 agent）
+./hermes-stack.sh status           # 所有 agent 狀態總覽
+./hermes-stack.sh ls               # 列出已設定的 agent 與其 port
 ```
 
 > 機制、`new` 流程與注意事項見 [Multi-Agent — 用 hermes-stack.sh 管理多容器](docs/guides/multi-agent.md#36-用-hermes-stacksh-管理多容器)。

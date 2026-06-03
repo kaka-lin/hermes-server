@@ -7,8 +7,8 @@
 # 做命名空間隔離，N 個 agent 互不干擾，全部共用同一份已被 env 參數化的
 # docker-compose.yml（腳本不修改 compose 檔）。
 #
-#   - 主 agent  : ~/.hermes        project=hermes        吃 compose 預設 port/容器名
-#   - 分身 agent: ~/.hermes-<name> project=hermes-<name> 讀 agents/<name>.conf
+#   - 主 agent  : ~/.hermes  project=hermes  吃 compose 預設 port/容器名
+#   - 分身 agent: ~/.<name>   project=<name>  讀 agents/<name>.conf（name 原樣，不自動補前綴）
 #
 # Usage:
 #   ./hermes-stack.sh up [<name>|all]       # 啟動（無參數 = 主 agent）
@@ -103,7 +103,7 @@ compose_one() (
     # shellcheck disable=SC1090
     . "$envfile"
     set +a
-    project="hermes-$agent"
+    project="$agent"
   fi
   docker compose --project-directory "$SCRIPT_DIR" -p "$project" -f "$COMPOSE_FILE" "$@"
 )
@@ -160,8 +160,8 @@ status_line() (
     # shellcheck disable=SC1090
     . "$AGENTS_DIR/$agent.conf"
     set +a
-    gw="${HERMES_CONTAINER_NAME:-hermes-$agent}"
-    dash="${HERMES_DASHBOARD_CONTAINER_NAME:-hermes-$agent-dashboard}"
+    gw="${HERMES_CONTAINER_NAME:-$agent}"
+    dash="${HERMES_DASHBOARD_CONTAINER_NAME:-$agent-dashboard}"
     gwport="${HERMES_GATEWAY_PORT:-?}"
     dashport="${HERMES_DASHBOARD_PORT:-?}"
   fi
@@ -219,10 +219,10 @@ cmd_new() {
   local name="${1:-}" force="${2:-}"
   [[ -n "$name" ]] || die "用法：$0 new <name> [--force]"
   [[ "$name" =~ ^[a-z0-9-]+$ ]] || die "名稱只能用小寫字母 / 數字 / 連字號：$name"
-  [[ "$name" == "main" ]] && die "名稱不能叫 main（保留給主 agent）"
+  [[ "$name" == "main" || "$name" == "hermes" ]] && die "名稱不能叫 main / hermes（保留給主 agent）"
 
   local envfile="$AGENTS_DIR/$name.conf"
-  local data_dir="$HOME/.hermes-$name"
+  local data_dir="$HOME/.$name"
   local main_data="${HERMES_DATA_DIR:-$HOME/.hermes}"
 
   if [[ "$force" != "--force" ]]; then
@@ -269,9 +269,9 @@ cmd_new() {
   mkdir -p "$AGENTS_DIR"
   cat >"$envfile" <<EOF
 # Hermes agent '$name' — compose 編排設定（由 hermes-stack.sh new 產生）
-HERMES_DATA_DIR=\${HOME}/.hermes-$name
-HERMES_CONTAINER_NAME=hermes-$name
-HERMES_DASHBOARD_CONTAINER_NAME=hermes-$name-dashboard
+HERMES_DATA_DIR=\${HOME}/.$name
+HERMES_CONTAINER_NAME=$name
+HERMES_DASHBOARD_CONTAINER_NAME=$name-dashboard
 HERMES_GATEWAY_PORT=$gwport
 HERMES_DASHBOARD_PORT=$dashport
 EOF

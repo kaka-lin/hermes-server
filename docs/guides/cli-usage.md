@@ -15,20 +15,12 @@ Hermes 同一個 image 提供兩種運作模式：
 ### hermes CLI
 
 - **職責**：管理底層設定（authority、sessions、skills、cron）。
-- **機制**：在已運行的 container 中透過 `docker exec` 執行，或啟動臨時容器。
+- **機制**：以 `docker run` 啟動臨時容器執行，掛載 `~/.hermes` 共用資料夾。
 - **狀態**：執行完即結束。
 
 ## 2. 在本專案執行 CLI
 
-兩種方式：
-
-### 方式 A：在運行中的 gateway 容器內執行（推薦）
-
-```bash
-docker exec -it hermes hermes <command>
-```
-
-### 方式 B：啟動臨時容器執行（gateway 未啟動時）
+CLI 以臨時容器執行，掛載 `~/.hermes` 資料夾即可操作與 gateway 共用的設定與資料。執行完即結束，不影響運行中的 gateway：
 
 ```bash
 docker run -it --rm \
@@ -45,12 +37,12 @@ docker run -it --rm \
 docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent setup
 
 # 重新設定特定模組
-docker exec -it hermes hermes setup model
-docker exec -it hermes hermes setup terminal
-docker exec -it hermes hermes setup gateway
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent setup model
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent setup terminal
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent setup gateway
 
 # 完整重置
-docker exec -it hermes hermes setup --reset
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent setup --reset
 ```
 
 ### 📊 Dashboard
@@ -70,120 +62,120 @@ docker compose logs -f dashboard
 
 ```bash
 # 列出已核准的配對
-docker exec -it hermes hermes pairing list
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent pairing list
 
 # 核准配對 code（從 bot 訊息取得）
-docker exec -it hermes hermes pairing approve telegram <code>
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent pairing approve telegram <code>
 
 # 撤銷使用者
-docker exec -it hermes hermes pairing revoke telegram <user-id>
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent pairing revoke telegram <user-id>
 
 # 清除等待中的配對請求
-docker exec -it hermes hermes pairing clear-pending
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent pairing clear-pending
 ```
 
 ### 💬 Session 管理
 
 ```bash
 # 列出最近的 sessions
-docker exec -it hermes hermes sessions list
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent sessions list
 
 # 互動瀏覽
-docker exec -it hermes hermes sessions browse
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent sessions browse
 
 # 匯出 session
-docker exec -it hermes hermes sessions export ./session-backup.json --session-id <id>
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent sessions export ./session-backup.json --session-id <id>
 
 # 刪除 session
-docker exec -it hermes hermes sessions delete <id>
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent sessions delete <id>
 
 # 清理過期 session
-docker exec -it hermes hermes sessions prune
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent sessions prune
 
 # 查看統計資料
-docker exec -it hermes hermes sessions stats
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent sessions stats
 ```
 
 ### ⏰ Cron Job 排程管理
 
 ```bash
 # 列出所有排程
-docker exec -it hermes hermes cron list
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent cron list
 
 # 建立新 cron（互動式）
-docker exec -it hermes hermes cron create
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent cron create
 
 # 用 skill 建立
-docker exec -it hermes hermes cron create --skill morning-summary
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent cron create --skill morning-summary
 
 # 編輯
-docker exec -it hermes hermes cron edit <job-id>
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent cron edit <job-id>
 
 # 暫停 / 恢復
-docker exec -it hermes hermes cron pause <job-id>
-docker exec -it hermes hermes cron resume <job-id>
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent cron pause <job-id>
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent cron resume <job-id>
 
 # 立即執行一次（不影響原排程）
-docker exec -it hermes hermes cron run <job-id>
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent cron run <job-id>
 
 # 查看狀態
-docker exec -it hermes hermes cron status
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent cron status
 
 # 刪除
-docker exec -it hermes hermes cron remove <job-id>
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent cron remove <job-id>
 ```
 
 ### 🧩 Skills 管理
 
 ```bash
 # 瀏覽 / 搜尋 hub 上的 skills
-docker exec -it hermes hermes skills browse
-docker exec -it hermes hermes skills search <keyword>
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent skills browse
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent skills search <keyword>
 
 # 安裝
-docker exec -it hermes hermes skills install <skill-slug>
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent skills install <skill-slug>
 
 # 列出本地 skills
-docker exec -it hermes hermes skills list
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent skills list
 
 # 檢視 skill 細節
-docker exec -it hermes hermes skills inspect <skill-slug>
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent skills inspect <skill-slug>
 
 # 安全性檢查
-docker exec -it hermes hermes skills check <skill-slug>
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent skills check <skill-slug>
 
 # 更新所有 skill
-docker exec -it hermes hermes skills update --all
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent skills update --all
 
 # 發布自己的 skill
-docker exec -it hermes hermes skills publish <skill-path>
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent skills publish <skill-path>
 ```
 
 ### 🧠 Memory 管理
 
 ```bash
 # 設定外部 memory provider（如 honcho、mem0）
-docker exec -it hermes hermes memory setup
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent memory setup
 
 # 查看狀態
-docker exec -it hermes hermes memory status
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent memory status
 
 # 關閉
-docker exec -it hermes hermes memory off
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent memory off
 ```
 
 ### 🔑 認證管理
 
 ```bash
 # 列出設定的 provider
-docker exec -it hermes hermes auth list
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent auth list
 
 # 新增 API key
-docker exec -it hermes hermes auth add openrouter --api-key sk-or-v1-xxx
-docker exec -it hermes hermes auth add anthropic --api-key sk-ant-...
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent auth add openrouter --api-key sk-or-v1-xxx
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent auth add anthropic --api-key sk-ant-...
 
 # 移除
-docker exec -it hermes hermes auth remove openrouter
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent auth remove openrouter
 ```
 
 ### 📋 Profile 管理
@@ -195,64 +187,64 @@ docker exec -it hermes hermes auth remove openrouter
 
 ```bash
 # 列出 profile
-docker exec -it hermes hermes profile list
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent profile list
 
 # 切換 profile（影響後續 plain `hermes` 指令的預設 profile）
-docker exec -it hermes hermes profile use work
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent profile use work
 
 # 建立新 profile（--clone 會複製 config / .env / SOUL.md）
-docker exec -it hermes hermes profile create work --clone
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent profile create work --clone
 
 # 匯出 / 匯入
-docker exec -it hermes hermes profile export work ./work.tar.gz
-docker exec -it hermes hermes profile import ./work.tar.gz
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent profile export work ./work.tar.gz
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent profile import ./work.tar.gz
 
 # 對特定 profile 下單次任務（subagent 模式，不啟動長駐 gateway）
-docker exec -it hermes hermes -p work chat -q "幫我跑 X 任務"
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent -p work chat -q "幫我跑 X 任務"
 ```
 
 ### 🔍 Insights 與 Logs
 
 ```bash
 # 查看活動洞察（過去 N 天）
-docker exec -it hermes hermes insights --days 7
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent insights --days 7
 
 # 查看特定來源
-docker exec -it hermes hermes insights --source telegram
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent insights --source telegram
 
 # Log 觀察
-docker exec -it hermes hermes logs gateway -n 200
-docker exec -it hermes hermes logs errors --since 1h
-docker exec -it hermes hermes logs --session <id> -f
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent logs gateway -n 200
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent logs errors --since 1h
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent logs --session <id> -f
 ```
 
 ### 🪝 Webhook
 
 ```bash
 # 訂閱 GitHub webhook 等
-docker exec -it hermes hermes webhook subscribe <name> \
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent webhook subscribe <name> \
   --prompt "Summarize this PR" \
   --events issues,pull_request
 
 # 列出
-docker exec -it hermes hermes webhook list
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent webhook list
 
 # 移除
-docker exec -it hermes hermes webhook remove <name>
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent webhook remove <name>
 
 # 測試
-docker exec -it hermes hermes webhook test <name>
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent webhook test <name>
 ```
 
 ## 4. Tips
 
-### 4.1 將 docker exec 包裝成 alias
+### 4.1 將 CLI 指令包裝成 alias
 
 在 host 的 shell 設定中加入：
 
 ```bash
 # ~/.zshrc 或 ~/.bashrc
-alias hcli='docker exec -it hermes hermes'
+alias hcli='docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent'
 ```
 
 之後就可以：

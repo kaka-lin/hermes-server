@@ -103,7 +103,7 @@ docker compose restart hermes
 如果你不確定有哪些 skill 名稱，可先列出：
 
 ```bash
-docker exec -it hermes hermes skills list
+docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent skills list
 ```
 
 ## 仍可正常使用嗎？

@@ -308,7 +308,7 @@ networks:
 5. **第一次 OAuth 登入**（如果 agent 用 Anthropic Portal 或其他 OAuth provider）
 
     ```bash
-    docker exec -it hermes-agent-line hermes setup
+    docker run -it --rm -v ~/.hermes-agent-line:/opt/data nousresearch/hermes-agent setup
     ```
 
 ## 3.6 用 hermes-stack.sh 管理多容器

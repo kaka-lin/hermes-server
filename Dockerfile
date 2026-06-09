@@ -27,3 +27,14 @@ RUN uv pip install --system --break-system-packages --no-cache-dir -r /tmp/requi
 COPY scripts/patch_dingtalk.py /tmp/patch_dingtalk.py
 RUN python3 /tmp/patch_dingtalk.py && rm /tmp/patch_dingtalk.py
 
+# dingtalk-stream is lazy-installed at runtime, so it is absent when dingtalk.py
+# is first imported: _IncomingHandler binds to `object` and never regains
+# ChatbotHandler.raw_process(), so the bot logs "'_IncomingHandler' object has
+# no attribute 'raw_process'" and never replies. This patch rebuilds the
+# handler as a real ChatbotHandler subclass after the lazy install (via type(),
+# since Python 3.13 forbids __bases__ assignment) and switches its __init__ to
+# an explicit base call so the rebuilt class doesn't TypeError on a stale
+# super() __class__ cell.
+COPY scripts/patch_dingtalk_handler.py /tmp/patch_dingtalk_handler.py
+RUN python3 /tmp/patch_dingtalk_handler.py && rm /tmp/patch_dingtalk_handler.py
+

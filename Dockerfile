@@ -16,3 +16,8 @@ RUN uv pip install --system --break-system-packages --no-cache-dir -r /tmp/requi
 # COPY scripts/patch_gemini.py /tmp/patch_gemini.py
 # RUN python3 /tmp/patch_gemini.py && rm /tmp/patch_gemini.py
 
+# Still required: upstream's _parse_target_ref has no dingtalk branch as of
+# v0.16.0 (tag v2026.6.5), so explicit dingtalk: targets fall back to the home channel.
+COPY scripts/patch_dingtalk_target.py /tmp/patch_dingtalk_target.py
+RUN python3 /tmp/patch_dingtalk_target.py && rm /tmp/patch_dingtalk_target.py
+

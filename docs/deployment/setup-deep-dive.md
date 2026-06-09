@@ -8,38 +8,40 @@
 ┌──────────────────────────────────────────────────┐
 │                 Docker Compose                    │
 │                                                   │
-│  ┌─────────────┐         ┌──────────────────┐   │
-│  │   hermes    │◄────────┤ hermes-dashboard │   │
-│  │  (gateway)  │  健康   │  (web UI 9119)    │   │
-│  │             │  檢查   └──────────────────┘   │
-│  │  port 8642  │                                  │
-│  └──────┬──────┘                                  │
-│         │                                         │
-│         ▼                                         │
+│  ┌──────────────────────────────────────────┐   │
+│  │              hermes (單一容器)             │   │
+│  │   /init (s6-overlay) 監督樹:               │   │
+│  │     • gateway run      → port 8642         │   │
+│  │     • dashboard (s6)   → port 9119         │   │
+│  └──────────────────┬───────────────────────┘   │
+│                     │                             │
+│                     ▼                             │
 │  ┌─────────────────┐                             │
-│  │  ~/.hermes/     │ ← 兩個容器共用              │
+│  │  ~/.hermes/     │ ← 單一 owner              │
 │  │  (host volume)  │                              │
 │  └─────────────────┘                              │
 └──────────────────────────────────────────────────┘
 ```
 
-兩個服務都來自同一個 image (`nousresearch/hermes-agent`)，但執行不同的 subcommand：
+只有一個容器,來自 image (`nousresearch/hermes-agent`)。容器的 `ENTRYPOINT` 是 `/init`（s6-overlay）,它會起一棵監督樹:
 
-- **hermes**：`gateway run`（持續運行的訊息處理服務）
-- **hermes-dashboard**：`dashboard --host 0.0.0.0 --insecure`（Web UI）
+- **gateway**:`gateway run`（持續運行的訊息處理服務,容器的主程式 / CMD）。
+- **dashboard**:由 `HERMES_DASHBOARD=1` 啟用,以 s6 服務的形式跟 gateway 跑在**同一個容器**裡（不是另一個容器）。
 
-## 2. 共用設定（YAML Anchor）
+這是官方建議的部署形態——dashboard 跟 gateway 同容器、共用同一份 `/opt/data`,只有一個寫入者。
 
-```yaml
-volumes:
-  &hermes-volumes
-  - ${HERMES_DATA_DIR:-${HOME}/.hermes}:/opt/data
-```
+## 2. 為什麼是「單一容器」而不是兩個
 
-使用 YAML anchor (`&hermes-volumes`) 避免兩個 service 重複定義 volume。修改一處即可同步兩端。
+早期版本曾把 dashboard 拆成第二個容器(`command: dashboard ...`)、跟 gateway 共掛同一份 `~/.hermes`。這違反官方設計,會出兩個問題:
 
-> [!IMPORTANT]
-> 兩個容器共用同一個資料夾，但**只允許跑一個 gateway**。`hermes -p <名稱> gateway run` 切換 profile 子目錄也不能繞過這條規則。官方逐字警告與多 instance 部署 SOP 見 [Multi-Agent — Docker Compose 多容器部署](../guides/multi-agent.md#3-docker-compose-多容器部署)。
+1. **s6 log 撞鎖**:兩個容器都走 `/init`,各自的 s6 監督樹會對 `/opt/data/logs/gateways/<profile>/lock` 搶 flock,後啟動的那個一直噴 `s6-log: ... Resource busy`。
+2. **並發寫入**:session 檔與 memory store 不支援多進程同時寫。
+
+官方逐字警告:
+
+> never run two Hermes **gateway** containers against the same data directory simultaneously — session files and memory stores are not designed for concurrent write access.
+
+正解就是本專案現在的做法:**一個容器,用 `HERMES_DASHBOARD=1` 內建 dashboard**。`hermes -p <名稱> gateway run` 切換 profile 子目錄也一樣不能繞過「同一份 data 只能一個 gateway」的規則;真要跑多個獨立 agent,請每個 agent 各自一份 host 資料夾,見 [Multi-Agent — Docker Compose 多容器部署](../guides/multi-agent.md#3-docker-compose-多容器部署)。
 
 ## 3. 環境變數與 runtime 設定
 
@@ -76,8 +78,7 @@ deploy:
 
 預設值適合大部分場景：
 
-- **Gateway 4G / 2 CPU**：足以執行 browser automation 與多平台訊息處理。
-- **Dashboard 512M / 0.5 CPU**：純 Web UI，輕量。
+- **4G / 2 CPU**：gateway 與 dashboard 同容器,足以執行 browser automation、多平台訊息處理外加輕量的 Web UI。
 
 不使用 browser tools 時可調降至 `1G`：
 
@@ -98,20 +99,20 @@ shm_size: "${HERMES_SHM_SIZE:-1g}"
 ## 8. 健康檢查機制
 
 ```yaml
-dashboard:
-  environment:
-    GATEWAY_HEALTH_URL: ${GATEWAY_HEALTH_URL:-http://hermes:8642}
-    GATEWAY_HEALTH_TIMEOUT: ${GATEWAY_HEALTH_TIMEOUT:-3}
-  depends_on:
-    - hermes
+healthcheck:
+  test: [ "CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('https://discord.com', timeout=5)" ]
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 15s
 ```
 
-Dashboard 透過 `hermes-net` bridge network 用容器名稱解析 gateway。
+因為 dashboard 跟 gateway 已經在**同一個容器**裡（s6 監督、crash 自動重啟）,不再需要跨容器的
+`GATEWAY_HEALTH_URL` / `depends_on` 來做容器間健康探測——那是舊的雙容器架構才需要的。
 
-- **同機部署**：用預設 `http://hermes:8642`（Docker DNS 自動解析）。
-- **跨主機部署**：改為 `http://<gateway-host>:<gateway-port>`。
-
-`depends_on` 確保啟動順序，但不等待 gateway 完全 ready；dashboard 自己會輪詢健康檢查 URL。
+現在 compose 的 `healthcheck` 改成探測「容器對外網的連通性」(打 `https://discord.com`),
+用來快速暴露 VPN 切換後 Python socket / DNS 快取卡死的情形。背後成因見
+[Docker DNS / VPN 疑難排解](../troubleshooting/docker-dns-vpn.md)。
 
 ## 9. Network 隔離
 
@@ -121,7 +122,7 @@ networks:
     driver: bridge
 ```
 
-獨立的 bridge network 讓兩個容器互通，但與其他 Docker compose 專案隔離。對外只透過 `ports:` 顯式 publish 必要的 port。
+獨立的 bridge network 與其他 Docker compose 專案隔離,對外只透過 `ports:` 顯式 publish 必要的 port（`8642` gateway、`9119` dashboard）。多 agent 部署時,各 stack 也能靠這個獨立 network 互不干擾。
 
 ## 10. 安全考量
 
@@ -159,11 +160,27 @@ ports:
 chmod 700 ~/.hermes
 ```
 
-## 11. 為何拿掉 `--insecure`
+## 11. Dashboard 的認證:`HERMES_DASHBOARD_INSECURE`
 
-早期版本 dashboard 可能有 `--insecure` flag 用於跳過 TLS 驗證。當前官方版本 dashboard 預設行為已穩定，不需要此 flag。本專案 `docker-compose.yml` 已移除。
+當 dashboard 綁非 loopback 介面（本專案綁 `0.0.0.0`)時,官方的行為是:
 
-如果你需要對外提供 HTTPS dashboard，建議在 reverse proxy 層處理 TLS，而不是讓 Hermes 自簽。
+- 若有註冊 OAuth provider(例如設了 `HERMES_DASHBOARD_OAUTH_CLIENT_ID`),OAuth gate 會自動生效。
+- 若沒有任何認證 provider,`start_server` 會**直接 fail-closed**,拒絕啟動並回報明確錯誤。
+
+也就是說,要在信任的 LAN 上跑「無 OAuth、無密碼」的 dashboard,必須**明確 opt-in**:
+
+```yaml
+environment:
+  HERMES_DASHBOARD: "${HERMES_DASHBOARD:-1}"
+  HERMES_DASHBOARD_INSECURE: "${HERMES_DASHBOARD_INSECURE:-true}"
+```
+
+本專案預設 `HERMES_DASHBOARD_INSECURE=true`,維持過去 `dashboard --insecure` 的行為（內網直接開,不擋認證）。
+
+> [!WARNING]
+> `HERMES_DASHBOARD_INSECURE=true` 等於把 dashboard 對 publish 出去的網段完全開放。
+> 對外提供時,請設為 `false` 並改走 OAuth,或在 reverse proxy（Caddy / nginx）層加認證與 TLS,
+> 不要讓 Hermes 自己裸奔在公網。
 
 ## 12. 相關文件
 

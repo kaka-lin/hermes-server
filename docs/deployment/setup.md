@@ -36,25 +36,26 @@ docker run -it --rm \
   -v ~/.hermes:/opt/data \
   nousresearch/hermes-agent setup
 
-# 2. 啟動 gateway
+# 2. 啟動 gateway（用 HERMES_DASHBOARD=1 在同一容器內一併啟用 Web Dashboard）
+#    這是官方建議做法：dashboard 以 s6 服務跟 gateway 同容器跑，共用 /opt/data。
+#    HERMES_DASHBOARD_INSECURE=1 跳過 OAuth gate，允許在信任的 LAN 上無認證存取；
+#    對外請改用 reverse proxy 或設定 OAuth。
 docker run -d \
   --name hermes \
   --restart unless-stopped \
   -p 8642:8642 \
-  -v ~/.hermes:/opt/data \
-  --shm-size=1g \
-  nousresearch/hermes-agent gateway run
-
-# 3. （可選）啟動 dashboard
-# 將 $HOST_IP 換成 gateway 所在主機 IP，例如 192.168.1.100。
-docker run -d \
-  --name hermes-dashboard \
-  --restart unless-stopped \
   -p 9119:9119 \
   -v ~/.hermes:/opt/data \
-  -e GATEWAY_HEALTH_URL=http://$HOST_IP:8642 \
-  nousresearch/hermes-agent dashboard --host 0.0.0.0 --insecure
+  --shm-size=1g \
+  -e HERMES_DASHBOARD=1 \
+  -e HERMES_DASHBOARD_INSECURE=1 \
+  nousresearch/hermes-agent gateway run
 ```
+
+> [!WARNING]
+> 不要為了 dashboard 另外開「第二個共用 `~/.hermes` 的容器」。兩個容器跑在同一份 `/opt/data`
+> 上會撞 s6 log lock（`Resource busy`），且 session / memory store 不支援並發寫入。官方
+> 逐字警告:*"never run two Hermes gateway containers against the same data directory simultaneously"*。
 
 ### 2.3 從原始碼建構 (From Source)
 

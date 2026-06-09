@@ -2,7 +2,8 @@
 #
 # hermes-stack.sh — 管理多個 Hermes agent 的 Docker Compose stack
 #
-# 每個 agent 是一個獨立的 compose stack（gateway + dashboard），靠
+# 每個 agent 是一個獨立的 compose stack（單一容器，gateway 與 dashboard
+# 由 s6 一起跑在裡面），靠
 #   docker compose -p <project> ...
 # 做命名空間隔離，N 個 agent 互不干擾，全部共用同一份已被 env 參數化的
 # docker-compose.yml（腳本不修改 compose 檔）。
@@ -147,12 +148,12 @@ container_state() {
 }
 
 # 印出單一 agent 的 gateway / dashboard 狀態（在 subshell 內 source env）
+# gateway 與 dashboard 跑在同一個容器，所以兩行共用同一個容器狀態。
 status_line() (
   local agent="$1"
-  local gw dash gwport dashport
+  local ctr gwport dashport state
   if [[ "$agent" == "main" ]]; then
-    gw="hermes"
-    dash="hermes-dashboard"
+    ctr="hermes"
     gwport="$MAIN_GATEWAY_PORT"
     dashport="$MAIN_DASHBOARD_PORT"
   else
@@ -160,13 +161,13 @@ status_line() (
     # shellcheck disable=SC1090
     . "$AGENTS_DIR/$agent.conf"
     set +a
-    gw="${HERMES_CONTAINER_NAME:-$agent}"
-    dash="${HERMES_DASHBOARD_CONTAINER_NAME:-$agent-dashboard}"
+    ctr="${HERMES_CONTAINER_NAME:-$agent}"
     gwport="${HERMES_GATEWAY_PORT:-?}"
     dashport="${HERMES_DASHBOARD_PORT:-?}"
   fi
-  printf "  %-14s gateway  %-26s %s\n" "$agent" "http://localhost:$gwport" "$(container_state "$gw")"
-  printf "  %-14s dash     %-26s %s\n" "" "http://localhost:$dashport" "$(container_state "$dash")"
+  state="$(container_state "$ctr")"
+  printf "  %-14s gateway  %-26s %s\n" "$agent" "http://localhost:$gwport" "$state"
+  printf "  %-14s dash     %-26s %s\n" "" "http://localhost:$dashport" "$state"
 )
 
 # ---- Commands ----
@@ -271,9 +272,10 @@ cmd_new() {
   mkdir -p "$AGENTS_DIR"
   cat >"$envfile" <<EOF
 # Hermes agent '$name' — compose 編排設定（由 hermes-stack.sh new 產生）
+# dashboard 跟 gateway 跑在同一容器（compose 已內建 HERMES_DASHBOARD=1），
+# 不需要獨立的 dashboard 容器名。
 HERMES_DATA_DIR=\${HOME}/.$name
 HERMES_CONTAINER_NAME=$name
-HERMES_DASHBOARD_CONTAINER_NAME=$name-dashboard
 HERMES_GATEWAY_PORT=$gwport
 HERMES_DASHBOARD_PORT=$dashport
 EOF

@@ -7,7 +7,8 @@ services:
     command: [ "bash", "-c", "python3 /opt/data/scripts/cdp_proxy.py & exec hermes gateway run" ]
     ports:
       - "${HERMES_GATEWAY_PORT:-8642}:8642"
-    volumes: &hermes-volumes
+      - "${HERMES_DASHBOARD_PORT:-9119}:9119"
+    volumes:
       - ${HERMES_DATA_DIR:-${HOME}/.hermes}:/opt/data
     # Hermes runtime config is read from /opt/data/.env, which maps to
     # ${HERMES_DATA_DIR:-${HOME}/.hermes}/.env. Keep this repo's .env for
@@ -18,6 +19,12 @@ services:
       API_SERVER_HOST: "0.0.0.0"
       API_SERVER_KEY: "${API_SERVER_KEY:-hermes_default_secret}"
       API_SERVER_CORS_ORIGINS: "*"
+      # 官方建議:dashboard 以 s6 服務跟 gateway 跑在同一容器,
+      # 不要再開第二個容器共用 /opt/data(會撞鎖、並發寫壞 session/memory)。
+      # 詳見 https://hermes-agent.nousresearch.com/docs/user-guide/docker
+      HERMES_DASHBOARD: "${HERMES_DASHBOARD:-1}"
+      # 維持原本 dashboard --insecure 行為(無 OAuth);接 OAuth 時設為 false
+      HERMES_DASHBOARD_INSECURE: "${HERMES_DASHBOARD_INSECURE:-true}"
     # Playwright/Chromium 共享記憶體；停用 browser tools 時可設為較小值
     shm_size: "${HERMES_SHM_SIZE:-1g}"
     # 內網 DNS 無法穩定解析外部域名，強制使用公共 DNS
@@ -41,29 +48,6 @@ services:
         limits:
           memory: ${HERMES_MEMORY_LIMIT:-4G}
           cpus: "${HERMES_CPU_LIMIT:-2.0}"
-
-  dashboard:
-    build: .
-    image: kakalin/hermes-agent:latest
-    container_name: "${HERMES_DASHBOARD_CONTAINER_NAME:-hermes-dashboard}"
-    restart: unless-stopped
-    command: dashboard --host 0.0.0.0 --insecure
-    ports:
-      - "${HERMES_DASHBOARD_PORT:-9119}:9119"
-    volumes: *hermes-volumes
-    environment:
-      TZ: ${TZ:-Asia/Taipei}
-      GATEWAY_HEALTH_URL: ${GATEWAY_HEALTH_URL:-http://hermes:8642}
-      GATEWAY_HEALTH_TIMEOUT: ${GATEWAY_HEALTH_TIMEOUT:-3}
-    networks:
-      - hermes-net
-    depends_on:
-      - hermes
-    deploy:
-      resources:
-        limits:
-          memory: ${HERMES_DASHBOARD_MEMORY_LIMIT:-512M}
-          cpus: "${HERMES_DASHBOARD_CPU_LIMIT:-0.5}"
 
 networks:
   hermes-net:

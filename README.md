@@ -8,10 +8,16 @@
 
 ## 服務架構 (Services)
 
-- **hermes** — 相容 OpenAI 格式的 API Gateway（對外 Port `8642`）
-- **hermes-dashboard** — Web Dashboard（對外 Port `9119`）
+- **hermes** — 單一容器,內含：
+  - 相容 OpenAI 格式的 API Gateway（對外 Port `8642`）
+  - Web Dashboard（對外 Port `9119`,由 `HERMES_DASHBOARD=1` 啟用,在容器內以 s6 服務跟 Gateway 一起跑）
 
-兩個服務共用 Host 上的 `~/.hermes` 資料夾（透過 `HERMES_DATA_DIR` 可改）。
+資料持久化在 Host 上的 `~/.hermes` 資料夾（透過 `HERMES_DATA_DIR` 可改）。
+
+> 這是官方建議的部署方式:dashboard 跟 gateway 同容器,共用同一份 `/opt/data`。
+> **切勿**另外開第二個容器去掛同一個資料夾——會造成 s6 log 撞鎖（`Resource busy`）並有並發寫壞
+> session / memory 的風險。詳見 [官方 Docker 文件](https://hermes-agent.nousresearch.com/docs/user-guide/docker)
+> 與 [Setup Deep Dive](docs/deployment/setup-deep-dive.md)。
 
 ## 專案範圍 (Repository Scope)
 
@@ -75,19 +81,16 @@ Compose 編排選項透過此目錄下的 `.env` 設定。完整變數清單請�
 | --- | --- | --- |
 | `TZ` | `Asia/Taipei` | Container 時區 |
 | `HERMES_IMAGE` | `nousresearch/hermes-agent:latest` | Docker Image Tag |
-| `HERMES_CONTAINER_NAME` | `hermes` | Gateway Container Name |
-| `HERMES_DASHBOARD_CONTAINER_NAME` | `hermes-dashboard` | Dashboard Container Name |
+| `HERMES_CONTAINER_NAME` | `hermes` | Container Name |
 | `HERMES_DATA_DIR` | `~/.hermes` | Host 上的資料目錄（多 Profile 時切換此路徑） |
 | `HERMES_GATEWAY_PORT` | `8642` | Gateway 對外 Port |
 | `HERMES_DASHBOARD_PORT` | `9119` | Dashboard 對外 Port |
+| `HERMES_DASHBOARD` | `1` | 是否在容器內啟用 Web Dashboard（s6 服務） |
+| `HERMES_DASHBOARD_INSECURE` | `true` | Dashboard 跳過 OAuth gate,允許無認證存取（等同舊版 `--insecure`） |
 | `API_SERVER_KEY` | `hermes_default_secret` | API Server 驗證金鑰 |
-| `HERMES_MEMORY_LIMIT` | `4G` | Gateway 容器記憶體限制 |
-| `HERMES_CPU_LIMIT` | `2.0` | Gateway 容器 CPU 限制 |
-| `HERMES_DASHBOARD_MEMORY_LIMIT` | `512M` | Dashboard 容器記憶體限制 |
-| `HERMES_DASHBOARD_CPU_LIMIT` | `0.5` | Dashboard 容器 CPU 限制 |
+| `HERMES_MEMORY_LIMIT` | `4G` | 容器記憶體限制（Gateway + Dashboard 同容器） |
+| `HERMES_CPU_LIMIT` | `2.0` | 容器 CPU 限制 |
 | `HERMES_SHM_SIZE` | `1g` | Browser Tools 共享記憶體 |
-| `GATEWAY_HEALTH_URL` | `http://hermes:8642` | Dashboard 健康檢查目標 |
-| `GATEWAY_HEALTH_TIMEOUT` | `3` | 健康檢查 Timeout（秒） |
 
 > **Note:** API Keys、平台 Token、Allowlist 由 Hermes 從 `~/.hermes/.env` 讀取。這跟官方 Docker 文件一致：Host 的 `~/.hermes` 會掛載到容器內 `/opt/data`。
 

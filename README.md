@@ -147,8 +147,8 @@ docker compose logs --tail 200 hermes
 # 停止服務
 docker compose down
 
-# 更新 image 與重啟服務（拉取最新 image 並重新建置客製化部分）
-docker compose pull && docker compose up -d --build
+# 更新 image 與重啟服務（拉取最新 base image 並重新建置客製化部分）
+docker compose build --pull && docker compose up -d
 ```
 
 ## 查版本 (Check Version)
@@ -162,7 +162,6 @@ docker exec hermes bash -c '/opt/hermes/.venv/bin/python /opt/hermes/hermes vers
 # 服務沒在跑時：用建置好的 image，--entrypoint 繞過 s6 避免拉起服務
 docker run --rm --entrypoint /opt/hermes/.venv/bin/python \
   kakalin/hermes-agent:latest /opt/hermes/hermes version
-
 ```
 
 輸出範例：`Hermes Agent v0.16.0 (2026.6.5) · upstream f8adefde`。

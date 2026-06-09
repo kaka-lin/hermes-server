@@ -214,15 +214,21 @@ DINGTALK_HOME_CHANNEL="cidXXXX==" # 預設通知對象的群組 ID (Conversation
 
 當透過 `dispatch-agent` 等技能在背景喚醒一個分身（CLI 模式）去執行任務時，該分身由於獨立執行且沒有持續連線的 WebSocket，也沒有使用者訊息帶來的「臨時 session webhook」，因此**無法透過 Gateway 的機制來回覆**。
 
-為了解決這個問題，背景分身在執行 `send_message` 工具時，會依賴你在 `.env` 中設定的自定義機器人 Webhook URL 來對指定群組進行**單向盲發**：
+為了解決這個問題，背景分身在執行 `send_message` 工具時，`_send_dingtalk` 會依下列優先順序投遞：
 
-```bash
-# 用於特定群組的「自定義機器人」單向廣播
-# 我們扮演 Client 端主動呼叫釘釘 API，不需架設 Webhook 伺服器
-DINGTALK_WEBHOOK_URL="https://oapi.dingtalk.com/robot/send?access_token=..."
-```
+1. **官方企業機器人 API（優先）**：當 `DINGTALK_CLIENT_ID` / `DINGTALK_CLIENT_SECRET` 已設定，且目標是群組對話 ID（`cid...`）時，會換取 `accessToken` 並透過 `groupMessages/send` 的 `openConversationId` 投遞到**指定的群組**。因此 `dingtalk:cidXXXX==` 這類明確目標可以正確送達對應群組，而不會被綁死在單一群組。
 
-> 💡 **提示**：這是釘釘官方的「自定義群組機器人」功能。你只需要在目標群組的設定中新增自定義機器人並獲取這串 URL 即可。這與 Gateway 的雙向回覆機制是獨立且並存的功能，**專門用於解決 Multi-Agent 架構下缺乏對話上下文的主動回報問題**。
+2. **自定義機器人 Webhook（後備）**：當官方 API 失敗，或目標不是群組 ID 時，退回使用 `DINGTALK_WEBHOOK_URL` 對其綁定的群組進行**單向盲發**：
+
+    ```bash
+    # 用於特定群組的「自定義機器人」單向廣播
+    # 我們扮演 Client 端主動呼叫釘釘 API，不需架設 Webhook 伺服器
+    DINGTALK_WEBHOOK_URL="https://oapi.dingtalk.com/robot/send?access_token=..."
+    ```
+
+> 💡 **提示**：自定義機器人 Webhook 是釘釘官方的「自定義群組機器人」功能，每串 URL 綁定單一群組；你只需要在目標群組的設定中新增自定義機器人並獲取這串 URL 即可。官方企業機器人 API 則可依 `openConversationId` 投遞到不同群組，是 Multi-Agent 背景分身能精準回報到指定群組的關鍵。兩者皆與 Gateway 的雙向回覆機制獨立並存。
+>
+> ⚠️ 此投遞優先順序需套用 `patch-dingtalk` 修補（見 `skills/patch-dingtalk/`），該修補同時加上 `_parse_target_ref` 的 dingtalk 分支（讓 `dingtalk:cidXXXX==` 被解析為明確目標）與 `_send_dingtalk` 的官方 API 投遞。
 
 ## 6. 常見問題與除錯 (Troubleshooting)
 

@@ -16,8 +16,14 @@ RUN uv pip install --system --break-system-packages --no-cache-dir -r /tmp/requi
 # COPY scripts/patch_gemini.py /tmp/patch_gemini.py
 # RUN python3 /tmp/patch_gemini.py && rm /tmp/patch_gemini.py
 
-# Still required: upstream's _parse_target_ref has no dingtalk branch as of
-# v0.16.0 (tag v2026.6.5), so explicit dingtalk: targets fall back to the home channel.
-COPY scripts/patch_dingtalk_target.py /tmp/patch_dingtalk_target.py
-RUN python3 /tmp/patch_dingtalk_target.py && rm /tmp/patch_dingtalk_target.py
+# Still required as of v0.16.0 (tag v2026.6.5): two halves of one dingtalk fix.
+#   - _parse_target_ref has no dingtalk branch, so explicit dingtalk: targets
+#     fall back to the home channel.
+#   - _send_dingtalk only knows the static custom-robot webhook (one bound
+#     group), so out-of-process sends ignore the requested chat_id.
+# The patch adds the dingtalk branch and the official enterprise robot API
+# (groupMessages/send) so an explicit dingtalk:cidXXXX== target delivers to
+# that specific group, with a webhook fallback.
+COPY scripts/patch_dingtalk.py /tmp/patch_dingtalk.py
+RUN python3 /tmp/patch_dingtalk.py && rm /tmp/patch_dingtalk.py
 

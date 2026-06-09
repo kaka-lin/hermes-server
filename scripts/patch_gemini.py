@@ -1,3 +1,18 @@
+# DEPRECATED (2026-06-09): no longer wired into the Dockerfile.
+#
+# Upstream hermes-agent fixed this independently in v0.13.0 (tag v2026.5.7,
+# released 2026-05-07, "The Tenacity Release") — commit 2026-05-04
+# "fix(gemini): extract usageMetadata from streaming chunks for token tracking".
+# translate_stream_event now parses `usageMetadata` (promptTokenCount /
+# candidatesTokenCount) and attaches token counts to the finish chunk, so any
+# base image >= v0.13.0 already reports streaming usage correctly.
+#
+# Kept for reference and as a rollback safety net. Note it uses plain
+# str.replace() with no anchor check: against a newer base image whose code has
+# changed, every replace() silently no-ops (it does NOT corrupt the file), so
+# re-enabling it on an already-fixed base is harmless but pointless. Only re-add
+# the Dockerfile COPY/RUN lines if Gemini streaming usage shows 0 again.
+
 import re
 
 print("Patching gemini_native_adapter.py...")

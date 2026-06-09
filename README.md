@@ -151,6 +151,22 @@ docker compose down
 docker compose pull && docker compose up -d --build
 ```
 
+## 查版本 (Check Version)
+
+`:latest` 是浮動 tag（目前與 `main` 同一個 image，非穩定發布版），光看 Dockerfile 無法得知實際版本。注意 image 用 **s6-overlay** 啟動：`hermes` 不在 `docker exec` 的預設 PATH，且直接 `docker run <image> hermes …` 會把所有服務拉起再關掉（一堆 `s6-rc` log、有副作用）。`hermes` 本身是 Python 入口腳本（`/opt/hermes/hermes`），所以一律用 venv python 呼叫，與 cron 腳本一致。
+
+```bash
+# 服務正在跑時（最常用，輸出乾淨）；多 agent 時把 hermes 換成目標容器名（如 hermes-katherine）
+docker exec hermes bash -c '/opt/hermes/.venv/bin/python /opt/hermes/hermes version'
+
+# 服務沒在跑時：用建置好的 image，--entrypoint 繞過 s6 避免拉起服務
+docker run --rm --entrypoint /opt/hermes/.venv/bin/python \
+  kakalin/hermes-agent:latest /opt/hermes/hermes version
+
+```
+
+輸出範例：`Hermes Agent v0.16.0 (2026.6.5) · upstream f8adefde`。
+
 ## 多 Agent 管理 (Multi-Agent)
 
 需要多個 agent 同時長駐（各自 24/7 接訊息、互不干擾）時，用 [`hermes-stack.sh`](./hermes-stack.sh)。它沿用同一份 `docker-compose.yml`，靠 `docker compose -p <name>` 把每個 agent 隔離成獨立 stack；分身的 port / 容器名 / data dir 寫在各自的 `agents/<name>.conf`。

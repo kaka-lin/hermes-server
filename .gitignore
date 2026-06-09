@@ -54,3 +54,4 @@ build/
 
 # config
 browsers.conf
+.gstack/

@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# hermes-stack.sh — 管理多個 Hermes agent 的 Docker Compose stack
+# hermes-run.sh — 管理多個 Hermes agent 的 Docker Compose stack
 #
 # 每個 agent 是一個獨立的 compose stack（單一容器，gateway 與 dashboard
 # 由 s6 一起跑在裡面），靠
@@ -12,13 +12,13 @@
 #   - 分身 agent: ~/.<name>   project=<name>  讀 agents/<name>.conf（name 原樣，不自動補前綴）
 #
 # Usage:
-#   ./hermes-stack.sh up [<name>|all]       # 啟動（無參數 = 主 agent）
-#   ./hermes-stack.sh down [<name>|all]     # 停止
-#   ./hermes-stack.sh restart [<name>|all]  # 重啟 process（不重建容器）
-#   ./hermes-stack.sh logs [<name>]         # 跟著看 log（無參數 = 主 agent）
-#   ./hermes-stack.sh status [<name>]       # 無參數 = 所有 agent 狀態總覽
-#   ./hermes-stack.sh ls                    # 列出已設定的 agent 與其 port
-#   ./hermes-stack.sh new <name> [--force]  # scaffold 新分身（clone 主 agent 設定）
+#   ./hermes-run.sh up [<name>|all]       # 啟動（無參數 = 主 agent）
+#   ./hermes-run.sh down [<name>|all]     # 停止
+#   ./hermes-run.sh restart [<name>|all]  # 重啟 process（不重建容器）
+#   ./hermes-run.sh logs [<name>]         # 跟著看 log（無參數 = 主 agent）
+#   ./hermes-run.sh status [<name>]       # 無參數 = 所有 agent 狀態總覽
+#   ./hermes-run.sh ls                    # 列出已設定的 agent 與其 port
+#   ./hermes-run.sh new <name> [--force]  # scaffold 新分身（clone 主 agent 設定）
 #
 # 分身設定: agents/<name>.conf（port + 容器名 + data dir，由 `new` 自動產生）
 # 詳見 docs/guides/multi-agent.md
@@ -271,7 +271,7 @@ cmd_new() {
   # 4. 寫 orchestration env（HERMES_DATA_DIR 用 ${HOME}，腳本 source .conf 時才展開）
   mkdir -p "$AGENTS_DIR"
   cat >"$envfile" <<EOF
-# Hermes agent '$name' — compose 編排設定（由 hermes-stack.sh new 產生）
+# Hermes agent '$name' — compose 編排設定（由 hermes-run.sh new 產生）
 # dashboard 跟 gateway 跑在同一容器（compose 已內建 HERMES_DASHBOARD=1），
 # 不需要獨立的 dashboard 容器名。
 HERMES_DATA_DIR=\${HOME}/.$name
@@ -297,7 +297,7 @@ EOF
 
 usage() {
   cat <<EOF
-hermes-stack.sh — 管理多個 Hermes agent 的 Docker Compose stack
+hermes-run.sh — 管理多個 Hermes agent 的 Docker Compose stack
 
 Usage:
   $0 up [<name>|all]       啟動（無參數 = 主 agent ~/.hermes）

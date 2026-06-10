@@ -1,12 +1,13 @@
 model:
   base_url: https://generativelanguage.googleapis.com/v1beta
-  default: gemini-3.1-pro-preview
+  default: gemini-3.5-flash
   provider: gemini
 providers: {}
 fallback_providers: []
 credential_pool_strategies:
   gemini: fill_first
 toolsets: '["hermes-cli", "browser"]'
+max_concurrent_sessions: null
 agent:
   max_turns: 90
   gateway_timeout: 1800
@@ -14,7 +15,11 @@ agent:
   api_max_retries: 3
   service_tier: ''
   tool_use_enforcement: auto
+  task_completion_guidance: true
+  environment_probe: true
+  environment_hint: ''
   gateway_timeout_warning: 900
+  clarify_timeout: 600
   gateway_notify_interval: 600
   gateway_auto_continue_freshness: 3600
   image_input_mode: auto
@@ -75,7 +80,6 @@ terminal:
   singularity_image: docker://nikolaik/python-nodejs:python3.11-nodejs20
   modal_image: nikolaik/python-nodejs:python3.11-nodejs20
   daytona_image: nikolaik/python-nodejs:python3.11-nodejs20
-  vercel_runtime: node24
   container_cpu: 1
   container_memory: 5120
   container_disk: 51200
@@ -85,6 +89,7 @@ terminal:
   docker_extra_args: []
   docker_run_as_host_user: false
   persistent_shell: true
+  vercel_runtime: node24
   lifetime_seconds: 300
 web:
   backend: ''
@@ -102,6 +107,11 @@ browser:
   dialog_timeout_s: 300
   camofox:
     managed_persistence: false
+    user_id: ''
+    session_key: ''
+    adopt_existing_tab: false
+    rewrite_loopback_urls: false
+    loopback_host_alias: host.docker.internal
   cloud_provider: local
 checkpoints:
   enabled: true
@@ -134,6 +144,9 @@ compression:
   target_ratio: 0.2
   protect_last_n: 20
   hygiene_hard_message_limit: 400
+  protect_first_n: 3
+  abort_on_summary_failure: false
+  codex_gpt55_autoraise: true
 prompt_caching:
   cache_ttl: 5m
   long_lived_prefix: true
@@ -176,14 +189,6 @@ auxiliary:
     api_key: ''
     timeout: 120
     extra_body: {}
-  session_search:
-    provider: auto
-    model: ''
-    base_url: ''
-    api_key: ''
-    timeout: 30
-    extra_body: {}
-    max_concurrency: 3
   skills_hub:
     provider: auto
     model: ''
@@ -219,6 +224,20 @@ auxiliary:
     api_key: ''
     timeout: 120
     extra_body: {}
+  kanban_decomposer:
+    provider: auto
+    model: ''
+    base_url: ''
+    api_key: ''
+    timeout: 180
+    extra_body: {}
+  profile_describer:
+    provider: auto
+    model: ''
+    base_url: ''
+    api_key: ''
+    timeout: 60
+    extra_body: {}
   curator:
     provider: auto
     model: ''
@@ -226,6 +245,14 @@ auxiliary:
     api_key: ''
     timeout: 600
     extra_body: {}
+  session_search:
+    provider: auto
+    model: ''
+    base_url: ''
+    api_key: ''
+    timeout: 30
+    extra_body: {}
+    max_concurrency: 3
   flush_memories:
     api_key: ''
     base_url: ''
@@ -236,8 +263,15 @@ display:
   compact: false
   personality: kawaii
   resume_display: full
+  resume_exchanges: 10
+  resume_max_user_chars: 300
+  resume_max_assistant_chars: 200
+  resume_max_assistant_lines: 3
+  resume_skip_tool_only: true
   busy_input_mode: interrupt
+  interface: cli
   tui_auto_resume_recent: false
+  tui_agents_nudge: true
   bell_on_complete: false
   show_reasoning: false
   streaming: true
@@ -246,6 +280,8 @@ display:
   persistent_output: true
   persistent_output_max_lines: 200
   inline_diffs: true
+  file_mutation_verifier: true
+  turn_completion_explainer: true
   show_cost: true
   skin: default
   language: en
@@ -258,7 +294,11 @@ display:
   tool_progress_overrides: {}
   tool_preview_length: 0
   ephemeral_system_ttl: 0
-  platforms: {}
+  platforms:
+    telegram:
+      streaming: true
+    discord:
+      streaming: false
   runtime_footer:
     enabled: false
     fields:
@@ -270,6 +310,17 @@ display:
   tool_progress: 'off'
 dashboard:
   theme: default
+  show_token_analytics: true
+  oauth:
+    client_id: ''
+    portal_url: ''
+  basic_auth:
+    username: ''
+    password_hash: ''
+    password: ''
+    secret: ''
+    session_ttl_seconds: 0
+  public_url: ''
 privacy:
   redact_pii: false
 tts:
@@ -307,6 +358,11 @@ stt:
     model: whisper-1
   mistral:
     model: voxtral-mini-latest
+  elevenlabs:
+    model_id: scribe_v2
+    language_code: ''
+    tag_audio_events: false
+    diarize: false
 voice:
   record_key: ctrl+b
   max_recording_seconds: 120
@@ -333,6 +389,7 @@ delegation:
   provider: ''
   base_url: ''
   api_key: ''
+  api_mode: ''
   inherit_mcp_toolsets: true
   max_iterations: 50
   child_timeout_seconds: 600
@@ -421,6 +478,7 @@ curator:
   min_idle_hours: 2
   stale_after_days: 30
   archive_after_days: 90
+  prune_builtins: true
   backup:
     enabled: true
     keep: 5
@@ -433,13 +491,32 @@ slack:
   channel_prompts: {}
 discord:
   require_mention: true
-  free_response_channels: ''
+  free_response_channels: null
   allowed_channels: ''
   auto_thread: false
+  thread_require_mention: false
+  history_backfill: true
+  history_backfill_limit: 50
   reactions: true
   channel_prompts: {}
   dm_role_auth_guild: ''
   server_actions: ''
+  allow_any_attachment: false
+  max_attachment_bytes: 33554432
+  voice_fx:
+    enabled: false
+    ambient_enabled: true
+    ambient_path: ''
+    ambient_gain: 0.18
+    duck_gain: 0.06
+    speech_gain: 1.0
+    ack_enabled: true
+    ack_phrases:
+    - Let me look into that.
+    - One moment.
+    - Checking on that now.
+    - Give me a sec.
+    - On it.
 whatsapp: {}
 telegram:
   reactions: false
@@ -460,7 +537,8 @@ approvals:
   cron_mode: deny
   mcp_reload_confirm: true
   destructive_slash_confirm: true
-command_allowlist: []
+command_allowlist:
+- script execution via -e/-c flag
 quick_commands: {}
 hooks: {}
 hooks_auto_accept: false
@@ -485,10 +563,24 @@ kanban:
   dispatch_in_gateway: true
   dispatch_interval_seconds: 60
   failure_limit: 2
+  worker_log_rotate_bytes: 2097152
+  worker_log_backup_count: 1
+  orchestrator_profile: ''
+  default_assignee: ''
+  max_in_progress_per_profile: null
+  auto_decompose: true
+  auto_decompose_per_tick: 3
+  dispatch_stale_timeout_seconds: 14400
 code_execution:
   mode: project
   max_tool_calls: 50
   timeout: 300
+tools:
+  tool_search:
+    enabled: auto
+    threshold_pct: 10
+    search_default_limit: 5
+    max_search_limit: 20
 logging:
   level: INFO
   max_size_mb: 5
@@ -496,31 +588,67 @@ logging:
 model_catalog:
   enabled: true
   url: https://hermes-agent.nousresearch.com/docs/api/model-catalog.json
-  ttl_hours: 24
+  ttl_hours: 1
   providers: {}
 network:
   force_ipv4: false
+gateway:
+  strict: false
+  media_delivery_allow_dirs: []
+  trust_recent_files: true
+  trust_recent_files_seconds: 600
+  platforms:
+    dingtalk:
+      extra:
+        require_mention: true
+streaming:
+  enabled: false
+  transport: auto
+  edit_interval: 0.8
+  buffer_threshold: 24
+  cursor: " \u2589"
+  fresh_final_after_seconds: 60.0
 sessions:
   auto_prune: false
   retention_days: 90
   vacuum_after_prune: true
   min_interval_hours: 24
+  write_json_snapshots: false
 onboarding:
   seen:
     busy_input_prompt: true
+  profile_build: ask
 updates:
   pre_update_backup: false
   backup_keep: 5
-_config_version: 18
+  non_interactive_local_changes: stash
+lsp:
+  enabled: true
+  wait_mode: document
+  wait_timeout: 5.0
+  install_strategy: auto
+  servers: {}
+x_search:
+  model: grok-4.20-reasoning
+  timeout_seconds: 180
+  retries: 2
+secrets:
+  bitwarden:
+    enabled: false
+    access_token_env: BWS_ACCESS_TOKEN
+    project_id: ''
+    cache_ttl_seconds: 300
+    override_existing: true
+    auto_install: true
+    server_url: ''
+paste_collapse_threshold: 5
+paste_collapse_threshold_fallback: 5
+paste_collapse_char_threshold: 2000
+_config_version: 28
 fallback_model:
   model: gpt-5.5
   provider: openai-codex
   base_url: https://chatgpt.com/backend-api/codex
-gateway:
-  platforms:
-    dingtalk:
-      extra:
-        require_mention: true
 group_sessions_per_user: true
 platform_toolsets:
   cli:
@@ -548,7 +676,7 @@ smart_model_routing:
   enabled: false
   max_simple_chars: 160
   max_simple_words: 28
-streaming:
-  enabled: false
 image_gen:
   provider: openai
+plugins:
+  enabled: []

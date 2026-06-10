@@ -72,7 +72,7 @@ Hermes 把問題外包給 Docker 網路層：
 - Docker Desktop 預留 `192.168.65.254`（等同 `host.docker.internal`）讓容器反查 host。
 - 為了繞過 Chrome 的 DNS rebinding 防護，Hermes 在容器內額外起一個 [`cdp_proxy.py`](../../scripts/cdp_proxy.py) —— 它是個**純 TCP byte forwarder**，在容器內 `127.0.0.1:<port>` 開 listener，把流量原封不動轉到 `192.168.65.254:<port>`。
 - 這樣 CDP client 連到 `127.0.0.1:<port>` 時，送出的 HTTP `Host` header 自然就寫 `127.0.0.1:<port>`，Chrome 的 DNS rebinding 檢查直接放行——proxy 不用改寫任何封包內容。
-- `cdp_proxy.py` 由 docker-compose 在容器啟動時一併拉起（`python3 .../cdp_proxy.py & exec hermes gateway run`），並讀取 data dir 內的 `scripts/host/browsers.conf`（由 `hermes-stack.sh new` 從 repo root 的 `browsers.conf` 複製進去，與 host 端 `start-browsers.sh` 讀的是同一份清單），會為 conf 裡每個 port 各開一條轉發，無需手動逐一指定。
+- `cdp_proxy.py` 由 docker-compose 在容器啟動時一併拉起（`python3 .../cdp_proxy.py & exec hermes gateway run`），並讀取 data dir 內的 `scripts/host/browsers.conf`（由 `hermes-run.sh new` 從 repo root 的 `browsers.conf` 複製進去，與 host 端 `start-browsers.sh` 讀的是同一份清單），會為 conf 裡每個 port 各開一條轉發，無需手動逐一指定。
 
 買到的東西：簡單，沒有 daemon、沒有 pairing。
 代價：對網路拓樸有要求（基本上只適合本機或內網），CDP 本身幾乎沒做認證。

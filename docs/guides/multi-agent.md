@@ -311,9 +311,9 @@ networks:
     docker run -it --rm -v ~/.hermes-agent-line:/opt/data nousresearch/hermes-agent setup
     ```
 
-## 3.6 用 hermes-stack.sh 管理多容器
+## 3.6 用 hermes-run.sh 管理多容器
 
-[`hermes-stack.sh`](../../hermes-stack.sh) 把上面 §3.3 的推薦架構與 §3.5 的新增 SOP 包成一支腳本，**不修改 `docker-compose.yml`**。它的做法是：同一份已被 env 參數化的 compose 檔，搭配 `docker compose -p <project>` 做命名空間隔離，每個 agent 一個獨立 stack。
+[`hermes-run.sh`](../../hermes-run.sh) 把上面 §3.3 的推薦架構與 §3.5 的新增 SOP 包成一支腳本，**不修改 `docker-compose.yml`**。它的做法是：同一份已被 env 參數化的 compose 檔，搭配 `docker compose -p <project>` 做命名空間隔離，每個 agent 一個獨立 stack。
 
 - **主 agent**：`~/.hermes`，project = `hermes`，吃 compose 預設 port / 容器名，不需要設定檔。
 - **分身 agent**：`~/.<name>`，project = `<name>`，編排設定讀 [`agents/<name>.conf`](../../agents/agent.conf.example)。`<name>` 原樣使用、不自動補前綴，所以要 `hermes-` 開頭請自己打全名（例如 `new hermes-katherine` → 容器 `hermes-katherine`）。
@@ -323,13 +323,13 @@ networks:
 ### 指令
 
 ```bash
-./hermes-stack.sh up [<name>|all]       # 啟動（無參數 = 主 agent）
-./hermes-stack.sh down [<name>|all]     # 停止
-./hermes-stack.sh restart [<name>|all]  # 重啟 process（不重建容器）
-./hermes-stack.sh logs [<name>]         # 跟著看 log（無參數 = 主 agent）
-./hermes-stack.sh status [<name>]       # 無參數 = 所有 agent 狀態總覽
-./hermes-stack.sh ls                    # 列出已設定的 agent 與其 port
-./hermes-stack.sh new <name> [--force]  # scaffold 新分身（clone 主 agent 設定）
+./hermes-run.sh up [<name>|all]       # 啟動（無參數 = 主 agent）
+./hermes-run.sh down [<name>|all]     # 停止
+./hermes-run.sh restart [<name>|all]  # 重啟 process（不重建容器）
+./hermes-run.sh logs [<name>]         # 跟著看 log（無參數 = 主 agent）
+./hermes-run.sh status [<name>]       # 無參數 = 所有 agent 狀態總覽
+./hermes-run.sh ls                    # 列出已設定的 agent 與其 port
+./hermes-run.sh new <name> [--force]  # scaffold 新分身（clone 主 agent 設定）
 ```
 
 > [!NOTE]
@@ -342,7 +342,7 @@ networks:
 3. 建 `~/.<name>/`，**clone** 主 agent 的 `.env` / `config.yaml`（刻意**不含 `SOUL.md`**——身份是 system prompt slot #1，新分身自己定義，避免靜默繼承主 agent 人格）。
 4. 複製容器內 runtime 腳本到 data dir，保留 `cdp_proxy.py` 需要的巢狀結構：`scripts/cdp_proxy.py`（來源 repo `scripts/`）與 `scripts/host/browsers.conf`（來源 repo root 的 `browsers.conf`，是 [`cdp_proxy.py`](../../scripts/cdp_proxy.py) 讀 port 的來源，見 [瀏覽器接線架構](mac-chrome-cdp-guide.md)）。
 5. 產生 `agents/<name>.conf`（絕對路徑 data dir、自動挑的 port、唯一容器名）。
-6. 印出剩下的手動步驟：撰寫分身自己的 `SOUL.md`（身份），去分身的 `.env` 填它自己的 platform token / allowlist / API key，必要時改 `config.yaml` 的 `browser.cdp_url`，然後 `./hermes-stack.sh up <name>`。
+6. 印出剩下的手動步驟：撰寫分身自己的 `SOUL.md`（身份），去分身的 `.env` 填它自己的 platform token / allowlist / API key，必要時改 `config.yaml` 的 `browser.cdp_url`，然後 `./hermes-run.sh up <name>`。
 
 `new` **不複製 skills**——分身用 image 內建 skills 起步，要哪個客製 skill 再自行安裝（避免與「skills 目錄需可寫、且 role-specific」打架）。
 

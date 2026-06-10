@@ -5,17 +5,18 @@ version: 1.0.0
 ---
 # Patch DingTalk
 
-Hermes Agent's DingTalk integration has two independent defects on the current
-base image. Both are fixed by patch scripts applied at build time
-([Dockerfile](../../Dockerfile)), in sequence, against a pristine base image.
-Each script is idempotent, so a re-run is a no-op.
+Hermes Agent's DingTalk integration has two independent defects upstream. Both
+are fixed by patches applied at build time
+([Dockerfile](../../Dockerfile)) against the pinned base image
+(`nousresearch/hermes-agent:v2026.6.5`).
+Each patch is idempotent, so a re-run is a no-op.
 
 The two patches address **different symptoms** — read the one that matches what
 you are seeing, or apply both after a rebuild.
 
 ## 1. Routing — messages reach the wrong group
 
-Script: `patch_dingtalk_send.py`. Symptom: an explicit `dingtalk:cidXXXX==` target is
+Patch: `patches/dingtalk-send-routing.patch`. Symptom: an explicit `dingtalk:cidXXXX==` target is
 delivered to the home channel or to the webhook's single bound group instead of
 the group it names.
 
@@ -41,7 +42,7 @@ Two halves of one fix:
 
 ## 2. Stream handler — the bot never replies
 
-Script: `patch_dingtalk_handler.py`. Symptom: every inbound message logs
+Patch: `patches/dingtalk-stream-handler.patch`. Symptom: every inbound message logs
 `'_IncomingHandler' object has no attribute 'raw_process'` and the bot never
 replies.
 
@@ -78,6 +79,12 @@ When rebuilding or restarting the container, or when DingTalk misbehaves:
 
 ## Steps
 
-1. Run `python /opt/data/scripts/patch_dingtalk_send.py`
-2. Run `python /opt/data/scripts/patch_dingtalk_handler.py`
-3. Restart Hermes Gateway or the CLI session.
+Patches are applied at image build time by `patches/apply.py` (see
+[Dockerfile](../../Dockerfile)). To (re)apply:
+
+1. Rebuild the image: `docker compose build` (use `--pull` to refresh the base).
+2. Recreate the container: `docker compose up -d`.
+
+The applier is idempotent — patches already present are skipped — and aborts
+the build with a clear error if an upstream change makes a patch no longer
+apply (a signal to refresh the diff via `patches/README.md`).

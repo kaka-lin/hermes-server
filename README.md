@@ -150,13 +150,17 @@ docker compose logs --tail 200 hermes
 # 停止服務
 docker compose down
 
-# 更新 image 與重啟服務（拉取最新 base image 並重新建置客製化部分）
-docker compose build --pull && docker compose up -d
+# 重建客製化層並重啟（base image 已 pin 在 HERMES_VERSION，不會自動換版）
+docker compose build && docker compose up -d
+
+# 升級上游 Hermes：改 HERMES_VERSION 再重建
+#   穩定版：在 .env 設 HERMES_VERSION=<新 tag>（預設 v2026.6.5），再 build
+#   試最新：HERMES_VERSION=latest docker compose build --pull && docker compose up -d
 ```
 
 ## 查版本 (Check Version)
 
-`:latest` 是浮動 tag（目前與 `main` 同一個 image，非穩定發布版），光看 Dockerfile 無法得知實際版本。注意 image 用 **s6-overlay** 啟動：`hermes` 不在 `docker exec` 的預設 PATH，且直接 `docker run <image> hermes …` 會把所有服務拉起再關掉（一堆 `s6-rc` log、有副作用）。`hermes` 本身是 Python 入口腳本（`/opt/hermes/hermes`），所以一律用 venv python 呼叫，與 cron 腳本一致。
+base image 已 pin 在 `HERMES_VERSION`（預設 `v2026.6.5`），所以版本直接看 Dockerfile / `docker-compose.yml` 即可。若改用 `HERMES_VERSION=latest`（浮動 tag、非穩定發布版）建置，就看不出實際版本，需用下列指令向運行中的 image 查詢。注意 image 用 **s6-overlay** 啟動：`hermes` 不在 `docker exec` 的預設 PATH，且直接 `docker run <image> hermes …` 會把所有服務拉起再關掉（一堆 `s6-rc` log、有副作用）。`hermes` 本身是 Python 入口腳本（`/opt/hermes/hermes`），所以一律用 venv python 呼叫，與 cron 腳本一致。
 
 ```bash
 # 服務正在跑時（最常用，輸出乾淨）；多 agent 時把 hermes 換成目標容器名（如 hermes-katherine）

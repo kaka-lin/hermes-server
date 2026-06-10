@@ -55,3 +55,6 @@ build/
 # config
 browsers.conf
 .gstack/
+
+# patch 作者工作區(pristine / 修改後全量檔,用時再生)
+patches/.src/

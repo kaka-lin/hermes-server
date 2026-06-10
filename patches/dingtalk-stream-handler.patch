@@ -1,0 +1,40 @@
+--- a/gateway/platforms/dingtalk.py	2026-06-10 12:51:35
++++ b/gateway/platforms/dingtalk.py	2026-06-10 12:51:35
+@@ -138,6 +138,18 @@
+         httpx = _httpx
+         DINGTALK_STREAM_AVAILABLE = True
+         HTTPX_AVAILABLE = True
++        if "_IncomingHandler" in globals():
++            handler_cls = globals()["_IncomingHandler"]
++            if handler_cls.__bases__ == (object,):
++                # In Python 3.13, modifying __bases__ on an 'object'-derived heap class to a
++                # non-trivial base class like ChatbotHandler is prohibited due to deallocator
++                # layout mismatches. We work around this by dynamically creating a new class type.
++                new_class = type(
++                    "_IncomingHandler",
++                    (_ds.ChatbotHandler,),
++                    {k: v for k, v in handler_cls.__dict__.items() if k not in ("__dict__", "__weakref__")}
++                )
++                globals()["_IncomingHandler"] = new_class
+     if not os.getenv("DINGTALK_CLIENT_ID") or not os.getenv("DINGTALK_CLIENT_SECRET"):
+         return False
+     return True
+@@ -1410,8 +1422,16 @@
+     """
+ 
+     def __init__(self, adapter: DingTalkAdapter, loop: Optional[asyncio.AbstractEventLoop] = None):
+-        if DINGTALK_STREAM_AVAILABLE:
+-            super().__init__()
++        # Call the base initializer explicitly rather than via zero-arg
++        # ``super()``.  When ``check_dingtalk_requirements()`` rebuilds this
++        # class with ``type()`` after a lazy SDK install, the copied method's
++        # implicit ``__class__`` cell still points at the original
++        # ``object``-based class, so ``super().__init__()`` would raise
++        # ``TypeError: super(type, obj): obj must be an instance or subtype of
++        # type``.  Naming the base directly sidesteps the stale cell and works
++        # whether the class was defined normally or rebuilt via ``type()``.
++        if DINGTALK_STREAM_AVAILABLE and dingtalk_stream is not None:
++            dingtalk_stream.ChatbotHandler.__init__(self)
+         self._adapter = adapter
+         self._loop = loop
+ 

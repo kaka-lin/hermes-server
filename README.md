@@ -80,7 +80,7 @@ Compose 編排選項透過此目錄下的 `.env` 設定。完整變數清單請�
 | 變數 | 預設值 | 說明 |
 | --- | --- | --- |
 | `TZ` | `Asia/Taipei` | Container 時區 |
-| `HERMES_IMAGE` | `nousresearch/hermes-agent:latest` | Docker Image Tag |
+| `HERMES_VERSION` | `v2026.6.5` | 上游 base image 版本 tag（build 時）；設 `latest` 可測上游最新 |
 | `HERMES_CONTAINER_NAME` | `hermes` | Container Name |
 | `HERMES_DATA_DIR` | `~/.hermes` | Host 上的資料目錄（多 Profile 時切換此路徑） |
 | `HERMES_GATEWAY_PORT` | `8642` | Gateway 對外 Port |

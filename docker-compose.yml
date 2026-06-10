@@ -1,6 +1,10 @@
 services:
   hermes:
-    build: .
+    build:
+      context: .
+      args:
+        # 上游 base image 版本;預設 pin 穩定 tag,可用 HERMES_VERSION=latest 切到最新測上游
+        HERMES_VERSION: ${HERMES_VERSION:-v2026.6.5}
     image: kakalin/hermes-agent:latest
     container_name: "${HERMES_CONTAINER_NAME:-hermes}"
     restart: unless-stopped

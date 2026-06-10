@@ -3,15 +3,20 @@
 設計把「對上游 Hermes image 的修改」整理成一套乾淨、可讀、可 PR、可分享的機制，並用
 base image pinning 讓日常 build 穩定可重現。
 
+> [!NOTE]
+> 已實作完成。本節描述的 `scripts/patch_dingtalk_*.py` 字串替換腳本已由
+> `patches/*.patch` + `patches/apply.py` 取代（見 [patches/README.md](../../../patches/README.md)）；
+> 下列腳本路徑保留為當時現況的歷史紀錄，檔案本身已移除。
+
 ## 背景與問題
 
 本 repo（`hermes-server`）的定位是 NousResearch `nousresearch/hermes-agent`
 官方 image 的可部署設定，本身不含 Hermes 原始碼。為了修兩個上游缺陷，目前在
 build 時對 image 內的上游檔做字串替換：
 
-- [scripts/patch_dingtalk_send.py](../../../scripts/patch_dingtalk_send.py) — 改
+- `scripts/patch_dingtalk_send.py` — 改
   `tools/send_message_tool.py`（出站路由 + 官方 robot API）。
-- [scripts/patch_dingtalk_handler.py](../../../scripts/patch_dingtalk_handler.py) — 改
+- `scripts/patch_dingtalk_handler.py` — 改
   `gateway/platforms/dingtalk.py`（lazy-install 後重建 Stream handler）。
 
 現況有四個問題：

@@ -18,6 +18,7 @@ HERMES_ROOT = os.environ.get("HERMES_ROOT", "/opt/hermes")
 
 
 def _patch(patch_file: Path, extra: list[str]) -> subprocess.CompletedProcess:
+    """Invoke GNU ``patch`` for ``patch_file`` against ``HERMES_ROOT`` with extra flags."""
     with patch_file.open("rb") as fh:
         return subprocess.run(
             ["patch", "-p1", "-d", HERMES_ROOT, *extra],
@@ -26,15 +27,17 @@ def _patch(patch_file: Path, extra: list[str]) -> subprocess.CompletedProcess:
 
 
 def _already_applied(patch_file: Path) -> bool:
-    # Reverse dry-run succeeds only when the patch is already present.
+    """Return True if the patch is already present (a reverse dry-run applies cleanly)."""
     return _patch(patch_file, ["-R", "--dry-run", "-f", "-s"]).returncode == 0
 
 
 def _applies_clean(patch_file: Path) -> bool:
+    """Return True if the patch applies cleanly to a pristine tree (forward dry-run)."""
     return _patch(patch_file, ["--dry-run", "-f", "-s"]).returncode == 0
 
 
 def main() -> int:
+    """Apply every ``*.patch`` in the patches dir to ``HERMES_ROOT``; return a shell exit code."""
     patches_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent
     patches = sorted(patches_dir.glob("*.patch"))
     if not patches:

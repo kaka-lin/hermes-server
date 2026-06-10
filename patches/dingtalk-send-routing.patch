@@ -1,5 +1,5 @@
 --- a/tools/send_message_tool.py	2026-06-10 12:51:35
-+++ b/tools/send_message_tool.py	2026-06-10 12:51:35
++++ b/tools/send_message_tool.py	2026-06-10 13:23:30
 @@ -353,6 +353,8 @@
  
  def _parse_target_ref(platform_name: str, target_ref: str):
@@ -9,102 +9,105 @@
      if platform_name == "telegram":
          match = _TELEGRAM_TOPIC_TARGET_RE.fullmatch(target_ref)
          if match:
-@@ -1489,32 +1491,85 @@
+@@ -1489,18 +1491,79 @@
  
  
  async def _send_dingtalk(extra, chat_id, message):
 -    """Send via DingTalk robot webhook.
--
++    """Send via DingTalk platform.
+ 
 -    Note: The gateway's DingTalk adapter uses per-session webhook URLs from
 -    incoming messages (dingtalk-stream SDK).  For cross-platform send_message
 -    delivery we use a static robot webhook URL instead, which must be
 -    configured via ``DINGTALK_WEBHOOK_URL`` env var or ``webhook_url`` in the
 -    platform's extra config.
-+    """Send via DingTalk platform.
-+    
-+    Tries to send via the official enterprise robot API (Robot Group Message Send)
-+    if client_id and client_secret are configured and chat_id is a valid group conversation ID.
-+    Otherwise, falls back to the static custom robot webhook URL.
++    Tries the official enterprise robot API (groupMessages/send) when
++    ``client_id``/``client_secret`` are configured and ``chat_id`` is a group
++    conversation id (``cid...``); this delivers to the specific group via
++    ``openConversationId`` instead of a single static webhook target. Falls
++    back to the custom robot webhook (``DINGTALK_WEBHOOK_URL`` /
++    ``webhook_url``) on any failure or for non-group targets.
      """
      try:
          import httpx
      except ImportError:
          return {"error": "httpx not installed"}
 +
-+    # 1. 嘗試使用官方企業機器人 API 發送 (支援多群組投遞)
-+    client_id = (extra or {}).get("client_id") or os.getenv("DINGTALK_CLIENT_ID", "")
-+    client_secret = (extra or {}).get("client_secret") or os.getenv("DINGTALK_CLIENT_SECRET", "")
-+    
-+    # 檢查 chat_id 是否為 DingTalk 群組 ID (通常以 cid 開頭)
-+    is_group_chat = chat_id and (chat_id.startswith("cid") or len(chat_id) > 15)
-+    
++    extra = extra or {}
++
++    # 1. Official enterprise robot API — routes to a specific group by
++    #    openConversationId, so multiple cid groups can each be addressed.
++    client_id = extra.get("client_id") or os.getenv("DINGTALK_CLIENT_ID", "")
++    client_secret = extra.get("client_secret") or os.getenv("DINGTALK_CLIENT_SECRET", "")
++    is_group_chat = bool(chat_id) and chat_id.startswith("cid")
++
 +    if client_id and client_secret and is_group_chat:
 +        try:
-+            logger.info("Attempting to send DingTalk message via official Robot API to chat_id: %s", chat_id)
 +            async with httpx.AsyncClient(timeout=15.0) as client:
-+                # 換取 Access Token
 +                token_resp = await client.post(
 +                    "https://api.dingtalk.com/v1.0/oauth2/accessToken",
-+                    json={"appKey": client_id, "appSecret": client_secret}
++                    json={"appKey": client_id, "appSecret": client_secret},
 +                )
 +                token_resp.raise_for_status()
 +                access_token = token_resp.json().get("accessToken")
-+                
++
 +                if access_token:
-+                    # 發送群組 markdown 消息
-+                    # 注意：DingTalk 官方 markdown 消息的 text 最大支援 20000 字
-+                    import json
-+                    msg_param = json.dumps({"title": "Hermes戰報", "text": message})
-+                    
++                    # DingTalk markdown msgParam supports up to 20000 chars.
++                    msg_param = json.dumps({"title": "Hermes", "text": message})
 +                    send_resp = await client.post(
 +                        "https://api.dingtalk.com/v1.0/robot/groupMessages/send",
 +                        headers={
 +                            "x-acs-dingtalk-access-token": access_token,
-+                            "Content-Type": "application/json"
++                            "Content-Type": "application/json",
 +                        },
 +                        json={
 +                            "robotCode": client_id,
 +                            "openConversationId": chat_id,
 +                            "msgKey": "sampleMarkdown",
-+                            "msgParam": msg_param
-+                        }
++                            "msgParam": msg_param,
++                        },
 +                    )
 +                    send_resp.raise_for_status()
 +                    res_data = send_resp.json()
-+                    # 只要不拋出 HTTP 異常就代表成功
-+                    logger.info("Successfully sent DingTalk message via official Robot API")
-+                    return {"success": True, "platform": "dingtalk", "chat_id": chat_id, "method": "official_robot_api"}
++                    # A successful send returns a processQueryKey. Anything else
++                    # (e.g. a 200 with a logical error body) is treated as a
++                    # failure so we fall back to the webhook instead of
++                    # reporting a false success.
++                    if res_data.get("processQueryKey"):
++                        logger.info(
++                            "send_message DingTalk: delivered via official Robot API to %s",
++                            chat_id,
++                        )
++                        return {
++                            "success": True,
++                            "platform": "dingtalk",
++                            "chat_id": chat_id,
++                            "method": "official_robot_api",
++                        }
++                    logger.warning(
++                        "DingTalk official API returned no processQueryKey (%s), falling back to webhook",
++                        res_data,
++                    )
 +        except Exception as api_exc:
 +            logger.warning("DingTalk official API send failed, falling back to webhook: %s", api_exc)
-+            # 失敗時不立刻放棄，繼續往下走，fallback 到 webhook 投遞
 +
-+    # 2. Fallback: 使用自訂機器人 Webhook (單向廣播到預設群組)
++    # 2. Fallback: custom robot webhook (one-way broadcast to its bound group).
      try:
--        webhook_url = extra.get("webhook_url") or os.getenv("DINGTALK_WEBHOOK_URL", "")
-+        webhook_url = (extra or {}).get("webhook_url") or os.getenv("DINGTALK_WEBHOOK_URL", "")
+         webhook_url = extra.get("webhook_url") or os.getenv("DINGTALK_WEBHOOK_URL", "")
          if not webhook_url:
-             return {"error": "DingTalk not configured. Set DINGTALK_WEBHOOK_URL env var or webhook_url in dingtalk platform extra config."}
-+        
+@@ -1508,13 +1571,13 @@
          async with httpx.AsyncClient(timeout=30.0) as client:
--            resp = await client.post(
--                webhook_url,
+             resp = await client.post(
+                 webhook_url,
 -                json={"msgtype": "text", "text": {"content": message}},
--            )
-+            # Webhook 也可以發送 markdown
-+            payload = {
-+                "msgtype": "markdown",
-+                "markdown": {
-+                    "title": "Hermes",
-+                    "text": message
-+                }
-+            }
-+            resp = await client.post(webhook_url, json=payload)
++                json={"msgtype": "markdown", "markdown": {"title": "Hermes", "text": message}},
+             )
              resp.raise_for_status()
              data = resp.json()
              if data.get("errcode", 0) != 0:
 -                return _error(f"DingTalk API error: {data.get('errmsg', 'unknown')}")
 -        return {"success": True, "platform": "dingtalk", "chat_id": chat_id}
-+                return _error(f"DingTalk Webhook API error: {data.get('errmsg', 'unknown')}")
++                return _error(f"DingTalk webhook API error: {data.get('errmsg', 'unknown')}")
 +        return {"success": True, "platform": "dingtalk", "chat_id": chat_id, "method": "custom_webhook"}
      except Exception as e:
          return _error(f"DingTalk send failed: {e}")

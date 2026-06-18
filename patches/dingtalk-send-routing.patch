@@ -9,7 +9,7 @@
      if platform_name == "telegram":
          match = _TELEGRAM_TOPIC_TARGET_RE.fullmatch(target_ref)
          if match:
-@@ -1489,18 +1491,79 @@
+@@ -1489,18 +1491,89 @@
  
  
  async def _send_dingtalk(extra, chat_id, message):
@@ -52,8 +52,18 @@
 +                access_token = token_resp.json().get("accessToken")
 +
 +                if access_token:
-+                    # DingTalk markdown msgParam supports up to 20000 chars.
-+                    msg_param = json.dumps({"title": "Hermes", "text": message})
++                    # DingTalk's msgParam limit is 15000 *bytes*, not chars.
++                    # ensure_ascii=False keeps CJK at 3 UTF-8 bytes instead of
++                    # escaping each char to \uXXXX (6 bytes), which would inflate
++                    # an otherwise-short report past the limit and 400 the send.
++                    msg_param = json.dumps(
++                        {"title": "Hermes", "text": message}, ensure_ascii=False
++                    )
++                    msg_bytes = len(msg_param.encode("utf-8"))
++                    logger.info(
++                        "DingTalk official API msgParam: %d bytes (limit 15000)",
++                        msg_bytes,
++                    )
 +                    send_resp = await client.post(
 +                        "https://api.dingtalk.com/v1.0/robot/groupMessages/send",
 +                        headers={
@@ -95,7 +105,7 @@
      try:
          webhook_url = extra.get("webhook_url") or os.getenv("DINGTALK_WEBHOOK_URL", "")
          if not webhook_url:
-@@ -1508,13 +1571,13 @@
+@@ -1508,13 +1581,13 @@
          async with httpx.AsyncClient(timeout=30.0) as client:
              resp = await client.post(
                  webhook_url,

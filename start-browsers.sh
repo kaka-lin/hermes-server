@@ -70,12 +70,19 @@ launch_chrome() {
     echo "warn:   $profile  user-data-dir 不存在 ($user_data)，會建立全新空白 Chrome"
   fi
 
+  # 抗節流旗標：cron 在背景觸發時，Chrome 視窗常被遮蔽/縮小/螢幕鎖定，
+  # macOS occlusion 會凍結渲染與 JS 計時器，導致 CDP 操作打滑或卡死。
+  # 下列旗標讓 Chrome 即使「看不見」也維持正常 renderer 與 timer。
   "$CHROME" \
     --remote-debugging-port="$port" \
     --user-data-dir="$user_data" \
     --no-first-run \
     --no-default-browser-check \
     --remote-allow-origins='*' \
+    --disable-background-timer-throttling \
+    --disable-backgrounding-occluded-windows \
+    --disable-renderer-backgrounding \
+    --disable-features=CalculateNativeWinOcclusion \
     >/dev/null 2>&1 &
 
   echo "launch: $profile  on port $port  (pid $!)"

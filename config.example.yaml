@@ -1,7 +1,7 @@
 model:
-  base_url: https://generativelanguage.googleapis.com/v1beta
-  default: gemini-3.5-flash
-  provider: gemini
+  base_url: https://chatgpt.com/backend-api/codex
+  default: gpt-5.6-luna
+  provider: openai-codex
 providers: {}
 fallback_providers: []
 credential_pool_strategies:
@@ -184,52 +184,52 @@ bedrock:
     trace: disabled
 auxiliary:
   vision:
-    provider: gemini
-    model: gemini-3.5-flash
-    base_url: ''
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
     api_key: ''
     timeout: 120
     extra_body: {}
     download_timeout: 30
   web_extract:
-    provider: gemini
-    model: gemini-3.5-flash
-    base_url: ''
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
     api_key: ''
     timeout: 360
     extra_body: {}
   compression:
-    provider: gemini
-    model: gemini-3.5-flash
-    base_url: ''
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
     api_key: ''
     timeout: 120
     extra_body: {}
   skills_hub:
-    provider: gemini
-    model: gemini-3.5-flash
-    base_url: ''
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
     api_key: ''
     timeout: 30
     extra_body: {}
   approval:
-    provider: gemini
-    model: gemini-3.5-flash
-    base_url: ''
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
     api_key: ''
     timeout: 30
     extra_body: {}
   mcp:
-    provider: gemini
-    model: gemini-3.5-flash
-    base_url: ''
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
     api_key: ''
     timeout: 30
     extra_body: {}
   title_generation:
-    provider: gemini
-    model: gemini-3.5-flash
-    base_url: ''
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
     api_key: ''
     timeout: 30
     extra_body: {}
@@ -241,53 +241,53 @@ auxiliary:
     timeout: 30
     extra_body: {}
   triage_specifier:
-    provider: gemini
-    model: gemini-3.5-flash
-    base_url: ''
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
     api_key: ''
     timeout: 120
     extra_body: {}
   kanban_decomposer:
-    provider: gemini
-    model: gemini-3.5-flash
-    base_url: ''
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
     api_key: ''
     timeout: 180
     extra_body: {}
   profile_describer:
-    provider: gemini
-    model: gemini-3.5-flash
-    base_url: ''
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
     api_key: ''
     timeout: 60
     extra_body: {}
   curator:
-    provider: gemini
-    model: gemini-3.5-flash
-    base_url: ''
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
     api_key: ''
     timeout: 600
     extra_body: {}
   monitor:
-    provider: auto
-    model: ''
-    base_url: ''
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
     api_key: ''
     timeout: 60
     extra_body: {}
   session_search:
-    provider: auto
-    model: ''
-    base_url: ''
+    provider: openai-codex
+    model: gpt-5.6-luna
+    base_url: https://chatgpt.com/backend-api/codex
     api_key: ''
     timeout: 30
     extra_body: {}
     max_concurrency: 3
   flush_memories:
     api_key: ''
-    base_url: ''
-    model: ''
-    provider: auto
+    base_url: https://chatgpt.com/backend-api/codex
+    model: gpt-5.6-luna
+    provider: openai-codex
     timeout: 30
 display:
   compact: false

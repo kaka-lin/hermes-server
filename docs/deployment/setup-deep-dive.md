@@ -100,7 +100,7 @@ shm_size: "${HERMES_SHM_SIZE:-1g}"
 
 ```yaml
 healthcheck:
-  test: [ "CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('https://discord.com', timeout=5)" ]
+  test: [ "CMD", "python3", "-c", "import urllib.request as u; u.urlopen(u.Request('https://discord.com', headers={'User-Agent': 'hermes-healthcheck'}), timeout=5)" ]
   interval: 30s
   timeout: 10s
   retries: 3

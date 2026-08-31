@@ -99,7 +99,7 @@ services:
 
     healthcheck:
       test: ["CMD", "python3", "-c",
-        "import urllib.request; urllib.request.urlopen('https://discord.com', timeout=5)"]
+        "import urllib.request as u; u.urlopen(u.Request('https://discord.com', headers={'User-Agent': 'hermes-healthcheck'}), timeout=5)"]
       interval: 30s        # 每 30 秒檢查一次
       timeout: 10s         # 10 秒沒回應就算失敗
       retries: 3           # 連續 3 次失敗才判定不健康

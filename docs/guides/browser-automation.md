@@ -18,7 +18,7 @@ Hermes Agent 提供一套 browser tool 介面（`browser_navigate`、`browser_cl
 | --- | --- | --- |
 | 瀏覽器引擎 | 外部（`agent-browser` CLI / 雲端 / CDP） | 外部（Mac Host Chrome） |
 | 橋接方式 | `agent-browser` CLI 透過 CDP 驅動 Chrome | `openclaw node run` 作為 supervisor 啟動並監督 Chrome 子程序 |
-| 是否需要額外安裝 | ✅ 需安裝 `agent-browser` + `agent-browser install` | ✅ 需在 Mac 跑 `openclaw node run` |
+| 是否需要額外安裝 | Docker 內建 CLI，僅首次需 `agent-browser install` 下載 Chrome | ✅ 需在 Mac 跑 `openclaw node run` |
 | 登入狀態保持 | 每次 session 獨立（除非用 CDP 或 Camofox persistence） | 直接使用 Mac Chrome 的登入狀態 |
 | 適合場景 | 爬蟲、填表、自動化 | 需保持登入的操作（如 Threads、IG 發文） |
 
@@ -136,7 +136,10 @@ browser:
 
 **安裝 `agent-browser` CLI：**
 
-Local 模式依賴 [`agent-browser`](https://agent-browser.dev) CLI（Rust 原生二進位）。根據 [Hermes 官方文件](https://hermes-agent.nousresearch.com/docs/user-guide/features/browser#install-agent-browser-cli)與 [agent-browser 安裝指南](https://agent-browser.dev/installation)，安裝方式為：
+> [!NOTE]
+> **Docker 環境不需要安裝 CLI 本體。** `agent-browser` npm 套件已內建在 image 的 `/opt/hermes/node_modules`——上游 pin `^0.26.0`，本專案 Dockerfile 再覆寫成 build arg `AGENT_BROWSER_VERSION`（版本旋鈕在 `versions.env` 的 `AGENT_BROWSER_VERSION`，重建生效）。容器內真正缺的只有 Chrome 二進位，首次使用時 agent 會自動跑 `agent-browser install` 補上（見下方 NOTE）。所以 Docker 下的「啟用」只有[第 3 節](#3-啟用-browser-tools)的兩個步驟。版本限制與升級決策見 [agent-browser 版本管理](agent-browser-versions.md)。
+
+以下手動安裝適用於**非 Docker 的本機環境**。根據 [Hermes 官方文件](https://hermes-agent.nousresearch.com/docs/user-guide/features/browser#install-agent-browser-cli)與 [agent-browser 安裝指南](https://agent-browser.dev/installation)，安裝方式為：
 
 ```bash
 npm install -g agent-browser
@@ -157,7 +160,7 @@ docker run -it --rm \
 ```
 
 > [!NOTE]
-> Docker 環境下，即使執行了 `hermes tools` 或 `hermes setup tools`，`agent-browser` 不一定會成功安裝到容器內。若首次使用 `browser_navigate` 失敗，agent 會自動嘗試在容器內安裝 `agent-browser` 並重試：
+> Docker 環境下，CLI 本體雖已內建，但 Chrome 二進位不在 image 裡，`hermes tools` / `hermes setup tools` 也不保證下載成功。若首次使用 `browser_navigate` 失敗，agent 會自動在容器內跑 `agent-browser install` 補齊 Chrome 與依賴後重試：
 >
 > ```text
 > 💻 terminal: "agent-browser install"

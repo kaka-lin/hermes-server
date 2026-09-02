@@ -26,6 +26,7 @@
 
 - [Multi-Agent & Profiles)](guides/multi-agent.md)：臨時任務委派 (Delegate Task) 與實體多重程序 (Profiles) 之差異與應用。
 - [瀏覽器自動化設定](guides/browser-automation.md)：`shm_size`、Playwright、記憶體需求。
+- [agent-browser 版本管理](guides/agent-browser-versions.md)：怎麼升級（`versions.env`）、為什麼要覆寫上游版本、何時拆掉覆寫層。
 - [瀏覽器接線架構（與 OpenClaw Node 的搭配）](guides/mac-chrome-cdp-guide.md)：reverse tunnel vs direct attach、為什麼 Hermes 沒有等價 Node、多 profile 限制。
 
 ## 4. 平台整合 (Platform Integrations)

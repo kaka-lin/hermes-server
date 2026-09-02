@@ -3,18 +3,20 @@
 # hermes-build.sh — 建置客製化的 Hermes image
 #
 # 在官方 base image（nousresearch/hermes-agent:<版本>）上套用 patches/ 下的
-# unified diff（見 patches/apply.py），產出 docker-compose.yml 指定的成品 image
-# （kakalin/hermes-agent:latest），供 hermes-run.sh 啟動的所有 agent 共用。
+# unified diff（見 patches/apply.py）並覆寫 agent-browser 版本，產出
+# docker-compose.yml 指定的成品 image（kakalin/hermes-agent:latest），
+# 供 hermes-run.sh 啟動的所有 agent 共用。
 #
-# base image 版本是這支腳本的單一旋鈕：預設 pin 在穩定 tag，可在指令列覆寫。
+# 版本旋鈕（base image 與 agent-browser）集中在 versions.env（純資料、git 追蹤），
+# 可在指令列 / 環境變數臨時覆寫。
 #
 # Usage:
-#   ./hermes-build.sh                # 建置預設 pin 版本（見 HERMES_VERSION_DEFAULT）
+#   ./hermes-build.sh                # 建置 versions.env pin 的版本
 #   ./hermes-build.sh latest         # 改建上游最新（浮動 tag，自動加 --pull 刷新）
 #   ./hermes-build.sh v2026.7.0      # 建指定 tag
 #   ./hermes-build.sh --no-cache     # 其餘旗標原樣轉給 docker compose build
 #
-# 升級穩定版：改下方 HERMES_VERSION_DEFAULT 並 commit。
+# 升級：改 versions.env 並 commit。
 # 快速測試也可直接 `docker compose build`（吃 docker-compose.yml 的同名預設）。
 
 set -euo pipefail
@@ -22,29 +24,33 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
 
-# 上游 base image 版本（單一真相來源）。docker-compose.yml / Dockerfile 內的同名
-# 預設僅為「直接 docker compose build」的備援，請與此值保持一致。
-HERMES_VERSION_DEFAULT="v2026.6.5"
+# 版本從 versions.env 載入。環境變數覆寫（AGENT_BROWSER_VERSION=x.y.z ./hermes-build.sh）
+# 要先於 source 收起來，否則會被檔案內容蓋掉。
+agent_browser_override="${AGENT_BROWSER_VERSION:-}"
+# shellcheck source=versions.env
+source "$SCRIPT_DIR/versions.env"
 
 usage() {
   cat <<EOF
 hermes-build.sh — 建置客製化的 Hermes image
 
-在官方 base image（nousresearch/hermes-agent:<版本>）上套用 patches/ 的修補，
-產出 docker-compose.yml 指定的成品 image，供 hermes-run.sh 啟動的所有 agent 共用。
+在官方 base image（nousresearch/hermes-agent:<版本>）上套用 patches/ 的修補
+並覆寫 agent-browser 版本，產出 docker-compose.yml 指定的成品 image，
+供 hermes-run.sh 啟動的所有 agent 共用。
 
 Usage:
-  ./hermes-build.sh                建置預設 pin 版本（HERMES_VERSION_DEFAULT=${HERMES_VERSION_DEFAULT}）
+  ./hermes-build.sh                建置 versions.env pin 的版本（目前 ${HERMES_VERSION} / agent-browser ${AGENT_BROWSER_VERSION}）
   ./hermes-build.sh latest         改建上游最新（浮動 tag，自動 --pull 刷新）
   ./hermes-build.sh v2026.7.0      建指定 tag
   ./hermes-build.sh --no-cache     其餘旗標原樣轉給 docker compose build
 
-升級穩定版：改 HERMES_VERSION_DEFAULT 並 commit。
+升級：改 versions.env 並 commit。
+臨時測試 agent-browser 其他版本：AGENT_BROWSER_VERSION=x.y.z ./hermes-build.sh
 快速測試也可直接 \`docker compose build\`（吃 docker-compose.yml 的同名預設）。
 EOF
 }
 
-version="$HERMES_VERSION_DEFAULT"
+version="$HERMES_VERSION"
 passthrough=()
 
 for arg in "$@"; do
@@ -71,6 +77,8 @@ if [[ ${#passthrough[@]} -gt 0 ]]; then
   cmd+=("${passthrough[@]}")
 fi
 
-echo "==> Building Hermes image (base: nousresearch/hermes-agent:${version})"
-HERMES_VERSION="$version" "${cmd[@]}"
+agent_browser_version="${agent_browser_override:-$AGENT_BROWSER_VERSION}"
+
+echo "==> Building Hermes image (base: nousresearch/hermes-agent:${version}, agent-browser: ${agent_browser_version})"
+HERMES_VERSION="$version" AGENT_BROWSER_VERSION="$agent_browser_version" "${cmd[@]}"
 echo "==> Done. 啟動：./hermes-run.sh up"

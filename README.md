@@ -87,7 +87,7 @@ cp config.example.yaml ~/.hermes/config.yaml
 
 ### 建置 (Build)
 
-在官方 base image 上套用 `patches/` 的修補（見 [`patches/`](./patches/)），產出客製化成品 image（`kakalin/hermes-agent:latest`）。base image 版本是 [`hermes-build.sh`](./hermes-build.sh) 的單一旋鈕，預設 pin 在穩定 tag。
+在官方 base image 上套用 `patches/` 的修補（見 [`patches/`](./patches/)）並覆寫 agent-browser 版本（見 [agent-browser 版本管理](docs/guides/agent-browser-versions.md)），產出客製化成品 image（`kakalin/hermes-agent:latest`）。版本旋鈕集中在 [`versions.env`](./versions.env)，預設 pin 在穩定 tag。
 
 ```bash
 # 建置預設 pin 版本（穩定）
@@ -100,7 +100,7 @@ cp config.example.yaml ~/.hermes/config.yaml
 ./hermes-build.sh v2026.7.0
 ```
 
-- **升級穩定版**：改 [`hermes-build.sh`](./hermes-build.sh) 的 `HERMES_VERSION_DEFAULT` 並 commit；`docker-compose.yml` / `Dockerfile` 內同名預設是「直接 `docker compose build`」的備援，請一併同步。
+- **升級穩定版**：改 [`versions.env`](./versions.env) 的 `HERMES_VERSION` / `AGENT_BROWSER_VERSION` 並 commit；`docker-compose.yml` / `Dockerfile` 內同名預設是「直接 `docker compose build`」的備援，請一併同步。
 - **快速測試**：也可不經腳本直接 `docker compose build`（吃上述備援預設）。
 
 ### 啟動與管理 (Run)
@@ -137,7 +137,7 @@ cp config.example.yaml ~/.hermes/config.yaml
 
 ### 查版本 (Check Version)
 
-base image 版本 pin 在 `HERMES_VERSION`（預設見 [`hermes-build.sh`](./hermes-build.sh) 的 `HERMES_VERSION_DEFAULT`），所以從設定就看得出版本。若用 `./hermes-build.sh latest`（浮動 tag、非穩定發布版）建置，就看不出實際版本，需用下列指令向運行中的 image 查詢。注意 image 用 **s6-overlay** 啟動：`hermes` 不在 `docker exec` 的預設 PATH，且直接 `docker run <image> hermes …` 會把所有服務拉起再關掉（一堆 `s6-rc` log、有副作用）。`hermes` 本身是 Python 入口腳本（`/opt/hermes/hermes`），所以一律用 venv python 呼叫，與 cron 腳本一致。
+base image 版本 pin 在 `HERMES_VERSION`（見 [`versions.env`](./versions.env)），所以從設定就看得出版本。若用 `./hermes-build.sh latest`（浮動 tag、非穩定發布版）建置，就看不出實際版本，需用下列指令向運行中的 image 查詢。注意 image 用 **s6-overlay** 啟動：`hermes` 不在 `docker exec` 的預設 PATH，且直接 `docker run <image> hermes …` 會把所有服務拉起再關掉（一堆 `s6-rc` log、有副作用）。`hermes` 本身是 Python 入口腳本（`/opt/hermes/hermes`），所以一律用 venv python 呼叫，與 cron 腳本一致。
 
 ```bash
 # 服務正在跑時（最常用，輸出乾淨）；多 agent 時把 hermes 換成目標容器名（如 hermes-katherine）
@@ -154,12 +154,13 @@ docker run --rm --entrypoint /opt/hermes/.venv/bin/python \
 
 ### 環境變數 (Environment Variables)
 
-下表是 Docker Compose 傳入容器的變數，多數是有安全預設的編排選項（在 `docker-compose.yml`；`HERMES_VERSION` 預設在 `hermes-build.sh`），可直接沿用或覆寫。要覆寫：單次用環境變數（如 `HERMES_GATEWAY_PORT=8643 ./hermes-run.sh up`），多 agent 則寫在各自的 `agents/<name>.conf`。**例外：`API_SERVER_KEY` 是驗證金鑰，預設不安全，務必更改。** Hermes 執行期設定（API Key、平台 Token 等）見 [`.env.example`](./.env.example)，複製到 `~/.hermes/.env` 使用。
+下表是 Docker Compose 傳入容器的變數，多數是有安全預設的編排選項（在 `docker-compose.yml`；`HERMES_VERSION` / `AGENT_BROWSER_VERSION` 在 `versions.env`），可直接沿用或覆寫。要覆寫：單次用環境變數（如 `HERMES_GATEWAY_PORT=8643 ./hermes-run.sh up`），多 agent 則寫在各自的 `agents/<name>.conf`。**例外：`API_SERVER_KEY` 是驗證金鑰，預設不安全，務必更改。** Hermes 執行期設定（API Key、平台 Token 等）見 [`.env.example`](./.env.example)，複製到 `~/.hermes/.env` 使用。
 
 | 變數 | 預設值 | 說明 |
 | --- | --- | --- |
 | `TZ` | `Asia/Taipei` | Container 時區 |
 | `HERMES_VERSION` | `v2026.6.5` | 上游 base image 版本 tag（build 時）；設 `latest` 可測上游最新 |
+| `AGENT_BROWSER_VERSION` | `0.36.0` | agent-browser 版本（build 時覆寫上游 pin，見 [agent-browser 版本管理](docs/guides/agent-browser-versions.md)） |
 | `HERMES_CONTAINER_NAME` | `hermes` | Container Name |
 | `HERMES_DATA_DIR` | `~/.hermes` | Host 上的資料目錄（多 Profile 時切換此路徑） |
 | `HERMES_GATEWAY_PORT` | `8642` | Gateway 對外 Port |

@@ -16,6 +16,12 @@
   `dingtalk:cidXXXX==` 目標經官方 robot API 送到該群。
 - `dingtalk-stream-handler.patch` — `gateway/platforms/dingtalk.py`：lazy SDK 安裝後
   重建 `_IncomingHandler`，讓 bot 會回訊。
+- `cli-session-source-override.patch` — `run_agent.py` 與
+  `agent/conversation_compression.py`：讓明確設定的 `HERMES_SESSION_SOURCE` 優先於
+  CLI 硬編碼的 `platform="cli"`，供 cron 以唯一 tag 精準彙總單次 token／API usage。
+  兩處都要改：前者是開新 session 時寫 `source`，後者是上下文壓縮後另開的續段
+  session，漏掉會讓壓縮過的 run 少算。這個變數只能在單次呼叫時設定，不要放進
+  `/opt/data/.env`，否則 gateway 上所有平台的 session 都會被貼同一個 tag。
 
 完整 root-cause 與症狀見 [../skills/patch-dingtalk/SKILL.md](../skills/patch-dingtalk/SKILL.md)。
 

@@ -10,6 +10,8 @@ RUN uv pip install --system --break-system-packages --no-cache-dir -r /tmp/requi
 #                              via the official robot API.
 #   - dingtalk-stream-handler: rebuild _IncomingHandler after the lazy SDK install so the
 #                              bot replies instead of crashing with no raw_process().
+#   - cli-session-source-override: preserve an explicit cron source tag instead of replacing
+#                                  it with the CLI platform label.
 COPY patches/ /tmp/patches/
 RUN apt-get update \
     && apt-get install -y --no-install-recommends patch \

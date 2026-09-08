@@ -256,11 +256,12 @@ cmd_new() {
     fi
   done
 
-  # 3. 放容器內 runtime 腳本，保留 cdp_proxy 需要的巢狀結構：
-  #    /opt/data/scripts/cdp_proxy.py + /opt/data/scripts/host/browsers.conf
+  # 3. 放容器內 runtime 腳本（scripts/ 整包），保留 cdp_proxy 需要的巢狀結構：
+  #    /opt/data/scripts/*.py + /opt/data/scripts/host/browsers.conf
   mkdir -p "$data_dir/scripts/host"
-  cp "$SCRIPT_DIR/scripts/cdp_proxy.py" "$data_dir/scripts/cdp_proxy.py"
-  echo "    runtime  : scripts/cdp_proxy.py"
+  # `src/.` 複製的是內容而非目錄本身，所以不會多長一層 scripts/scripts，也不會蓋掉剛建的 host/。
+  cp -R "$SCRIPT_DIR/scripts/." "$data_dir/scripts/"
+  echo "    runtime  : scripts/ （$(ls "$SCRIPT_DIR/scripts" | tr '\n' ' ')）"
   if [[ -f "$SCRIPT_DIR/browsers.conf" ]]; then
     cp "$SCRIPT_DIR/browsers.conf" "$data_dir/scripts/host/browsers.conf"
     echo "    runtime  : scripts/host/browsers.conf （來源 root/browsers.conf）"

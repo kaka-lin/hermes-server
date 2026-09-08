@@ -18,6 +18,10 @@ version: 1.1.0
 > To actually pick up the upstream fix, rebuild with a fresh base
 > (`docker compose build --pull`) — a plain `build` reuses the cached base layer
 > and may still be an old, pre-v0.13.0 image.
+>
+> **The script itself has been deleted** from `scripts/`, so the steps below no
+> longer run as written. To roll back, restore it from git first:
+> `git show 8e318ff:scripts/patch_gemini.py > scripts/patch_gemini.py`.
 
 Hermes Agent's `gemini_native_adapter.py` dropped `usageMetadata` during streaming.
 This skill applied a Python patch script located at `/opt/data/scripts/patch_gemini.py` to fix it.

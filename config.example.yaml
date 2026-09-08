@@ -1,7 +1,7 @@
 model:
   provider: openai-codex
   base_url: https://chatgpt.com/backend-api/codex
-  default: gpt-5.6-luna
+  default: gpt-5.6-terra
 providers: {}
 fallback_providers: []
 credential_pool_strategies:
@@ -9,7 +9,7 @@ credential_pool_strategies:
 toolsets: '["hermes-cli", "browser"]'
 max_concurrent_sessions: null
 agent:
-  max_turns: 90
+  max_turns: 160
   gateway_timeout: 1800
   restart_drain_timeout: 60
   api_max_retries: 3
@@ -66,7 +66,7 @@ agent:
     uwu: hewwo! i'm your fwiendwy assistant uwu~ i wiww twy my best to hewp you! *nuzzles
       your code* OwO what's this? wet me take a wook! i pwomise to be vewy hewpful
       >w<
-  reasoning_effort: medium
+  reasoning_effort: high
   verbose: false
 terminal:
   backend: local
@@ -433,7 +433,7 @@ delegation:
   api_key: ''
   api_mode: ''
   inherit_mcp_toolsets: true
-  max_iterations: 50
+  max_iterations: 80
   child_timeout_seconds: 600
   reasoning_effort: ''
   max_concurrent_children: 3
@@ -583,7 +583,7 @@ approvals:
   timeout: 60
   cron_mode: deny
   mcp_reload_confirm: true
-  destructive_slash_confirm: true
+  destructive_slash_confirm: false
 command_allowlist:
 - script execution via -e/-c flag
 quick_commands: {}
@@ -607,7 +607,7 @@ security:
 cron:
   wrap_response: true
   max_parallel_jobs: null
-  script_timeout_seconds: 1800
+  script_timeout_seconds: 7200
 code_execution:
   mode: project
   max_tool_calls: 50

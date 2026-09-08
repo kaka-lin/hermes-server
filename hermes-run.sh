@@ -106,8 +106,31 @@ compose_one() (
     set +a
     project="$agent"
   fi
+  # 只在 up 同步：down/restart/logs 不需要動 host 檔案。
+  [[ "${1:-}" == up ]] && sync_runtime "${HERMES_DATA_DIR:-$HOME/.hermes}"
   docker compose --project-directory "$SCRIPT_DIR" -p "$project" -f "$COMPOSE_FILE" "$@"
 )
+
+# 把 repo 的容器內 runtime 腳本同步進 agent 的 data dir（host 端路徑）。
+# data dir 掛載成容器的 /opt/data，所以這裡寫的 scripts/ 就是容器看到的
+# /opt/data/scripts/ —— cdp_proxy.py 讀 host/browsers.conf 的巢狀結構要保住。
+# 每次 up 都跑，不是只在 new 跑一次：repo 加了新腳本（如 cron_run_stats.py）
+# 或改了 browsers.conf，既有 agent 才拿得到。
+# 用 cp -R 而非 rsync --delete，因為 data dir 的 scripts/ 也放 agent runtime
+# 自己生成的腳本，不能清掉。
+sync_runtime() {
+  local data_dir="$1"
+  mkdir -p "$data_dir/scripts/host"
+  # `src/.` 複製的是內容而非目錄本身，所以不會多長一層 scripts/scripts，也不會蓋掉剛建的 host/。
+  cp -R "$SCRIPT_DIR/scripts/." "$data_dir/scripts/"
+  echo "    runtime  : scripts/ → $data_dir/scripts/ （$(ls "$SCRIPT_DIR/scripts" | tr '\n' ' ')）"
+  if [[ -f "$SCRIPT_DIR/browsers.conf" ]]; then
+    cp "$SCRIPT_DIR/browsers.conf" "$data_dir/scripts/host/browsers.conf"
+    echo "    runtime  : scripts/host/browsers.conf （來源 root/browsers.conf）"
+  else
+    echo "    warn     : 找不到 root/browsers.conf，cdp_proxy 啟動時無 port 可轉發（不影響 gateway 啟動）"
+  fi
+}
 
 # 把一個 compose 動作套用到目標（單一 agent 或 all）
 #   $1 = 目標（""|main|<name>|all）；其餘 = 傳給 docker compose 的參數
@@ -256,18 +279,8 @@ cmd_new() {
     fi
   done
 
-  # 3. 放容器內 runtime 腳本（scripts/ 整包），保留 cdp_proxy 需要的巢狀結構：
-  #    /opt/data/scripts/*.py + /opt/data/scripts/host/browsers.conf
-  mkdir -p "$data_dir/scripts/host"
-  # `src/.` 複製的是內容而非目錄本身，所以不會多長一層 scripts/scripts，也不會蓋掉剛建的 host/。
-  cp -R "$SCRIPT_DIR/scripts/." "$data_dir/scripts/"
-  echo "    runtime  : scripts/ （$(ls "$SCRIPT_DIR/scripts" | tr '\n' ' ')）"
-  if [[ -f "$SCRIPT_DIR/browsers.conf" ]]; then
-    cp "$SCRIPT_DIR/browsers.conf" "$data_dir/scripts/host/browsers.conf"
-    echo "    runtime  : scripts/host/browsers.conf （來源 root/browsers.conf）"
-  else
-    echo "    warn     : 找不到 root/browsers.conf，cdp_proxy 啟動時無 port 可轉發（不影響 gateway 啟動）"
-  fi
+  # 3. 放容器內 runtime 腳本（之後每次 up 也會重跑，見 sync_runtime）
+  sync_runtime "$data_dir"
 
   # 4. 寫 orchestration env（HERMES_DATA_DIR 用 ${HOME}，腳本 source .conf 時才展開）
   mkdir -p "$AGENTS_DIR"

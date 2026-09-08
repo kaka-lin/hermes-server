@@ -340,7 +340,7 @@ networks:
 1. 驗證名稱（`[a-z0-9-]`、不可叫 `main` / `hermes`，後者保留給主 agent）、確認 `agents/<name>.conf` 與 `~/.<name>` 不存在（`--force` 才覆寫）。
 2. 掃描主 agent 預設與現有 `agents/*.conf`，自動挑一組沒被佔用、且避開 CDP `9223-9225` 的 gateway / dashboard port。
 3. 建 `~/.<name>/`，**clone** 主 agent 的 `.env` / `config.yaml`（刻意**不含 `SOUL.md`**——身份是 system prompt slot #1，新分身自己定義，避免靜默繼承主 agent 人格）。
-4. 複製容器內 runtime 腳本到 data dir，保留 `cdp_proxy.py` 需要的巢狀結構：`scripts/cdp_proxy.py`（來源 repo `scripts/`）與 `scripts/host/browsers.conf`（來源 repo root 的 `browsers.conf`，是 [`cdp_proxy.py`](../../scripts/cdp_proxy.py) 讀 port 的來源，見 [瀏覽器接線架構](mac-chrome-cdp-guide.md)）。
+4. 同步容器內 runtime 腳本到 data dir，保留 `cdp_proxy.py` 需要的巢狀結構：`scripts/`（整包，來源 repo `scripts/`）與 `scripts/host/browsers.conf`（來源 repo root 的 `browsers.conf`，是 [`cdp_proxy.py`](../../scripts/cdp_proxy.py) 讀 port 的來源，見 [瀏覽器接線架構](mac-chrome-cdp-guide.md)）。**這步每次 `up` 都會重跑**（主 agent 也一樣），所以 repo 新增或修改腳本後，`up` 一次就會帶進既有 agent；用 `cp -R` 合併而非清空，data dir 裡 agent runtime 自己生成的腳本不受影響。
 5. 產生 `agents/<name>.conf`（絕對路徑 data dir、自動挑的 port、唯一容器名）。
 6. 印出剩下的手動步驟：撰寫分身自己的 `SOUL.md`（身份），去分身的 `.env` 填它自己的 platform token / allowlist / API key，必要時改 `config.yaml` 的 `browser.cdp_url`，然後 `./hermes-run.sh up <name>`。
 

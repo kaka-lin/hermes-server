@@ -1,6 +1,13 @@
 ARG HERMES_VERSION=v2026.9.14
 FROM nousresearch/hermes-agent:${HERMES_VERSION}
 
+# Keep a concrete CLI in the image so Hermes resolves it before its lazy npx
+# fallback. Override this build argument from the repo's Compose .env file.
+ARG AGENT_BROWSER_VERSION=0.26.0
+RUN npm install --prefix /opt/hermes --no-save --no-audit \
+    "agent-browser@${AGENT_BROWSER_VERSION}" \
+    && /opt/hermes/node_modules/.bin/agent-browser --version
+
 # Install custom-skill dependencies into the Hermes virtual environment.
 COPY requirements.txt /tmp/requirements.txt
 RUN uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir -r /tmp/requirements.txt

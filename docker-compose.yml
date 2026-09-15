@@ -5,6 +5,8 @@ services:
       args:
         # Pin the upstream base; use latest only for upgrade testing.
         HERMES_VERSION: ${HERMES_VERSION:-v2026.9.14}
+        # Install a concrete CLI instead of relying on Hermes's lazy npx fallback.
+        AGENT_BROWSER_VERSION: ${AGENT_BROWSER_VERSION:-0.26.0}
     # HERMES_VERSION selects both the base and custom image tag.
     image: kakalin/hermes-agent:${HERMES_VERSION:-v2026.9.14}
     container_name: "${HERMES_CONTAINER_NAME:-hermes}"

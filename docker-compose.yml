@@ -9,6 +9,9 @@ services:
     image: kakalin/hermes-agent:${HERMES_VERSION:-v2026.9.14}
     container_name: "${HERMES_CONTAINER_NAME:-hermes}"
     restart: unless-stopped
+    # compose 預設 10 秒就 SIGKILL，gateway 收尾（session/DB 寫回）常不夠，
+    # 下次啟動會報 "exited UNCLEANLY"；多給 20 秒。
+    stop_grace_period: 30s
     command: [ "bash", "-c", "python3 /opt/data/scripts/cdp_proxy.py & exec hermes gateway run" ]
     ports:
       - "${HERMES_GATEWAY_PORT:-8642}:8642"

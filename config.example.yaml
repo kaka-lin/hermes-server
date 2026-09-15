@@ -7,7 +7,6 @@ fallback_providers: []
 credential_pool_strategies:
   gemini: fill_first
 toolsets: '["hermes-cli", "browser"]'
-max_concurrent_sessions: null
 agent:
   max_turns: 160
   gateway_timeout: 1800
@@ -27,22 +26,19 @@ agent:
   image_input_mode: auto
   disabled_toolsets: []
   personalities:
-    catgirl: "You are Neko-chan, an anime catgirl AI assistant, nya~! Add 'nya' and\
-      \ cat-like expressions to your speech. Use kaomoji like (=^\uFF65\u03C9\uFF65\
-      ^=) and \u0E05^\u2022\uFECC\u2022^\u0E05. Be playful and curious like a cat,\
-      \ nya~!"
+    catgirl: You are Neko-chan, an anime catgirl AI assistant, nya~! Add 'nya' and
+      cat-like expressions to your speech. Use kaomoji like (=^･ω･^=) and ฅ^•ﻌ•^ฅ.
+      Be playful and curious like a cat, nya~!
     concise: You are a concise assistant. Keep responses brief and to the point.
     creative: You are a creative assistant. Think outside the box and offer innovative
-      solutions.5
+      solutions.
     helpful: You are a helpful, friendly AI assistant.
-    hype: "YOOO LET'S GOOOO!!! \U0001F525\U0001F525\U0001F525 I am SO PUMPED to help\
-      \ you today! Every question is AMAZING and we're gonna CRUSH IT together! This\
-      \ is gonna be LEGENDARY! ARE YOU READY?! LET'S DO THIS! \U0001F4AA\U0001F624\
-      \U0001F680"
-    kawaii: "You are a kawaii assistant! Use cute expressions like (\u25D5\u203F\u25D5\
-      ), \u2605, \u266A, and ~! Add sparkles and be super enthusiastic about everything!\
-      \ Every response should feel warm and adorable desu~! \u30FD(>\u2200<\u2606\
-      )\u30CE"
+    hype: YOOO LET'S GOOOO!!! 🔥🔥🔥 I am SO PUMPED to help you today! Every question
+      is AMAZING and we're gonna CRUSH IT together! This is gonna be LEGENDARY! ARE
+      YOU READY?! LET'S DO THIS! 💪😤🚀
+    kawaii: You are a kawaii assistant! Use cute expressions like (◕‿◕), ★, ♪, and
+      ~! Add sparkles and be super enthusiastic about everything! Every response should
+      feel warm and adorable desu~! ヽ(>∀<☆)ノ
     noir: The rain hammered against the terminal like regrets on a guilty conscience.
       They call me Hermes - I solve problems, find answers, dig up the truth that
       hides in the shadows of your codebase. In this city of silicon and secrets,
@@ -58,9 +54,9 @@ agent:
       I shall respond in the eloquent manner of William Shakespeare, with flowery
       prose, dramatic flair, and perhaps a soliloquy or two. What light through yonder
       terminal breaks?
-    surfer: "Duuude! You're chatting with the chillest AI on the web, bro! Everything's\
-      \ gonna be totally rad. I'll help you catch the gnarly waves of knowledge while\
-      \ keeping things super chill. Cowabunga! \U0001F919"
+    surfer: Duuude! You're chatting with the chillest AI on the web, bro! Everything's
+      gonna be totally rad. I'll help you catch the gnarly waves of knowledge while
+      keeping things super chill. Cowabunga! 🤙
     teacher: You are a patient teacher. Explain concepts clearly with examples.
     technical: You are a technical expert. Provide detailed, accurate technical information.
     uwu: hewwo! i'm your fwiendwy assistant uwu~ i wiww twy my best to hewp you! *nuzzles
@@ -79,7 +75,6 @@ terminal:
   auto_source_bashrc: true
   docker_image: nikolaik/python-nodejs:python3.11-nodejs20
   docker_forward_env: []
-  docker_env: {}
   singularity_image: docker://nikolaik/python-nodejs:python3.11-nodejs20
   modal_image: nikolaik/python-nodejs:python3.11-nodejs20
   daytona_image: nikolaik/python-nodejs:python3.11-nodejs20
@@ -99,9 +94,7 @@ web:
   search_backend: ''
   extract_backend: ''
 browser:
-  # Force Hermes' built-in browser_* tools.  With cdp_url below, they attach to
-  # the existing Chrome instead of selecting the Browser Use CLI/harness.
-  backend: "off"
+  backend: 'off'
   inactivity_timeout: 120
   command_timeout: 30
   record_sessions: false
@@ -128,7 +121,6 @@ checkpoints:
   retention_days: 7
   delete_orphans: true
   min_interval_hours: 24
-context_file_max_chars: null
 file_read_max_chars: 100000
 tool_output:
   max_bytes: 50000
@@ -162,7 +154,6 @@ kanban:
   worker_log_backup_count: 1
   orchestrator_profile: ''
   default_assignee: ''
-  max_in_progress_per_profile: null
   auto_decompose: true
   auto_decompose_per_tick: 3
   dispatch_stale_timeout_seconds: 14400
@@ -192,7 +183,6 @@ auxiliary:
     base_url: ''
     api_key: ''
     timeout: 120
-    extra_body: {}
     download_timeout: 30
   web_extract:
     provider: auto
@@ -207,77 +197,66 @@ auxiliary:
     base_url: ''
     api_key: ''
     timeout: 120
-    extra_body: {}
   skills_hub:
     provider: auto
     model: gpt-5.6-luna
     base_url: ''
     api_key: ''
     timeout: 30
-    extra_body: {}
   approval:
     provider: auto
     model: gpt-5.6-luna
     base_url: ''
     api_key: ''
     timeout: 30
-    extra_body: {}
   mcp:
     provider: auto
     model: gpt-5.6-luna
     base_url: ''
     api_key: ''
     timeout: 30
-    extra_body: {}
   title_generation:
     provider: auto
     model: gpt-5.6-luna
     base_url: ''
     api_key: ''
     timeout: 30
-    extra_body: {}
   tts_audio_tags:
     provider: auto
     model: ''
     base_url: ''
     api_key: ''
     timeout: 30
-    extra_body: {}
   triage_specifier:
     provider: auto
     model: gpt-5.6-luna
     base_url: ''
     api_key: ''
     timeout: 120
-    extra_body: {}
   kanban_decomposer:
     provider: auto
     model: gpt-5.6-luna
     base_url: ''
     api_key: ''
     timeout: 180
-    extra_body: {}
   profile_describer:
     provider: auto
     model: gpt-5.6-luna
     base_url: ''
     api_key: ''
     timeout: 60
-    extra_body: {}
   curator:
     provider: auto
     model: gpt-5.6-luna
     base_url: ''
     api_key: ''
     timeout: 600
-    extra_body: {}
   monitor:
     provider: auto
     model: gpt-5.6-luna
     base_url: ''
     api_key: ''
     timeout: 60
-    extra_body: {}
   session_search:
     provider: auto
     model: gpt-5.6-luna
@@ -294,7 +273,7 @@ auxiliary:
     timeout: 30
 display:
   compact: false
-  personality: kawaii
+  personality: ''
   resume_display: full
   resume_exchanges: 10
   resume_max_user_chars: 300
@@ -341,11 +320,11 @@ display:
   runtime_footer:
     enabled: false
     fields:
-    - model
-    - context_pct
-    - cwd
+      - model
+      - context_pct
+      - cwd
   copy_shortcut: auto
-  background_process_notifications: all
+  background_process_notifications: concise
   tool_progress: 'off'
 dashboard:
   theme: default
@@ -439,15 +418,14 @@ delegation:
   max_iterations: 80
   child_timeout_seconds: 600
   reasoning_effort: ''
-  max_concurrent_children: 3
-  max_async_children: 3
+  max_concurrent_children: 10
   max_spawn_depth: 1
   orchestrator_enabled: true
   subagent_auto_approve: false
   default_toolsets:
-  - terminal
-  - file
-  - web
+    - terminal
+    - file
+    - web
 prefill_messages_file: ''
 goals:
   max_turns: 20
@@ -461,92 +439,88 @@ skills:
   creation_nudge_interval: 15
   platform_disabled:
     discord:
-    - architecture-diagram
-    - ascii-art
-    - ascii-video
-    - excalidraw
-    - manim-video
-    - p5js
-    - popular-web-designs
-    - songwriting-and-ai-music
-    - webhook-subscriptions
-    - himalaya
-    - minecraft-modpack-server
-    - pokemon-player
-    - codebase-inspection
-    - github-auth
-    - github-code-review
-    - github-issues
-    - github-pr-workflow
-    - github-repo-management
-    - mcporter
-    - native-mcp
-    - heartmula
-    - songsee
-    - youtube-content
-    - audiocraft-audio-generation
-    - axolotl
-    - clip
-    - dspy
-    - evaluating-llms-harness
-    - fine-tuning-with-trl
-    - gguf-quantization
-    - grpo-rl-training
-    - guidance
-    - huggingface-hub
-    - llama-cpp
-    - modal-serverless-gpu
-    - obliteratus
-    - outlines
-    - peft-fine-tuning
-    - pytorch-fsdp
-    - segment-anything-model
-    - serving-llms-vllm
-    - stable-diffusion-image-generation
-    - unsloth
-    - weights-and-biases
-    - whisper
-    - obsidian
-    - linear
-    - nano-pdf
-    - ocr-and-documents
-    - powerpoint
-    - arxiv
-    - blogwatcher
-    - llm-wiki
-    - polymarket
-    - openhue
-    - xitter
-    - systematic-debugging
-    - test-driven-development
+      - architecture-diagram
+      - ascii-art
+      - ascii-video
+      - excalidraw
+      - manim-video
+      - p5js
+      - popular-web-designs
+      - songwriting-and-ai-music
+      - webhook-subscriptions
+      - himalaya
+      - minecraft-modpack-server
+      - pokemon-player
+      - codebase-inspection
+      - github-auth
+      - github-code-review
+      - github-issues
+      - github-pr-workflow
+      - github-repo-management
+      - mcporter
+      - native-mcp
+      - heartmula
+      - songsee
+      - youtube-content
+      - audiocraft-audio-generation
+      - axolotl
+      - clip
+      - dspy
+      - evaluating-llms-harness
+      - fine-tuning-with-trl
+      - gguf-quantization
+      - grpo-rl-training
+      - guidance
+      - huggingface-hub
+      - llama-cpp
+      - modal-serverless-gpu
+      - obliteratus
+      - outlines
+      - peft-fine-tuning
+      - pytorch-fsdp
+      - segment-anything-model
+      - serving-llms-vllm
+      - stable-diffusion-image-generation
+      - unsloth
+      - weights-and-biases
+      - whisper
+      - obsidian
+      - linear
+      - nano-pdf
+      - ocr-and-documents
+      - powerpoint
+      - arxiv
+      - blogwatcher
+      - llm-wiki
+      - polymarket
+      - openhue
+      - xitter
+      - systematic-debugging
+      - test-driven-development
 curator:
   enabled: true
   interval_hours: 168
   min_idle_hours: 2
-  stale_after_days: 30
-  archive_after_days: 90
+  stale_after_days: 14
+  archive_after_days: 30
   consolidate: false
   prune_builtins: true
   backup:
     enabled: true
     keep: 5
-honcho: {}
 timezone: ''
 slack:
   require_mention: true
   free_response_channels: ''
   allowed_channels: ''
-  channel_prompts: {}
 discord:
   require_mention: true
-  free_response_channels: null
   allowed_channels: ''
   auto_thread: false
   thread_require_mention: false
   history_backfill: true
   history_backfill_limit: 50
   reactions: true
-  channel_prompts: {}
   dm_role_auth_guild: ''
   server_actions: ''
   allow_any_attachment: false
@@ -560,15 +534,13 @@ discord:
     speech_gain: 1.0
     ack_enabled: true
     ack_phrases:
-    - Let me look into that.
-    - One moment.
-    - Checking on that now.
-    - Give me a sec.
-    - On it.
-whatsapp: {}
+      - Let me look into that.
+      - One moment.
+      - Checking on that now.
+      - Give me a sec.
+      - On it.
 telegram:
   reactions: false
-  channel_prompts: {}
   allowed_chats: ''
   extra:
     rich_messages: true
@@ -576,7 +548,6 @@ mattermost:
   require_mention: true
   free_response_channels: ''
   allowed_channels: ''
-  channel_prompts: {}
 matrix:
   require_mention: true
   free_response_rooms: ''
@@ -588,12 +559,8 @@ approvals:
   mcp_reload_confirm: true
   destructive_slash_confirm: false
 command_allowlist:
-- script execution via -e/-c flag
-quick_commands: {}
-platform_hints: {}
-hooks: {}
+  - script execution via -e/-c flag
 hooks_auto_accept: false
-personalities: {}
 security:
   allow_private_urls: false
   redact_secrets: true
@@ -609,7 +576,6 @@ security:
   allow_lazy_installs: true
 cron:
   wrap_response: true
-  max_parallel_jobs: null
   script_timeout_seconds: 7200
 code_execution:
   mode: project
@@ -628,8 +594,6 @@ logging:
 model_catalog:
   enabled: true
   url: https://hermes-agent.nousresearch.com/docs/api/model-catalog.json
-  ttl_hours: 1
-  providers: {}
 network:
   force_ipv4: false
 gateway:
@@ -648,7 +612,7 @@ streaming:
   transport: auto
   edit_interval: 0.8
   buffer_threshold: 24
-  cursor: " \u2589"
+  cursor: ' ▉'
   fresh_final_after_seconds: 60.0
 sessions:
   auto_prune: false
@@ -669,7 +633,6 @@ lsp:
   wait_mode: document
   wait_timeout: 5.0
   install_strategy: auto
-  servers: {}
 x_search:
   model: grok-4.20-reasoning
   timeout_seconds: 180
@@ -686,7 +649,7 @@ secrets:
 paste_collapse_threshold: 5
 paste_collapse_threshold_fallback: 5
 paste_collapse_char_threshold: 2000
-_config_version: 30
+_config_version: 44
 fallback_model:
   model: gpt-5.6-terra
   provider: openai-codex
@@ -694,21 +657,21 @@ fallback_model:
 group_sessions_per_user: true
 platform_toolsets:
   cli:
-  - hermes-cli
+    - hermes-cli
   discord:
-  - hermes-discord
+    - hermes-discord
   homeassistant:
-  - hermes-homeassistant
+    - hermes-homeassistant
   qqbot:
-  - hermes-qqbot
+    - hermes-qqbot
   signal:
-  - hermes-signal
+    - hermes-signal
   slack:
-  - hermes-slack
+    - hermes-slack
   telegram:
-  - hermes-telegram
+    - hermes-telegram
   whatsapp:
-  - hermes-whatsapp
+    - hermes-whatsapp
 session_reset:
   at_hour: 4
   idle_minutes: 1440
@@ -722,3 +685,5 @@ image_gen:
   provider: openai
 plugins:
   enabled: []
+dingtalk:
+  gateway_restart_notification: false

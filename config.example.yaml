@@ -1,8 +1,8 @@
 model:
-  provider: openai-codex
-  base_url: https://chatgpt.com/backend-api/codex
+  provider: openai-api
+  base_url: https://api.openai.com/v1
   default: gpt-5.6-terra
-providers: {}
+  api_mode: codex_responses
 fallback_providers: []
 credential_pool_strategies:
   gemini: fill_first
@@ -99,6 +99,9 @@ web:
   search_backend: ''
   extract_backend: ''
 browser:
+  # Force Hermes' built-in browser_* tools.  With cdp_url below, they attach to
+  # the existing Chrome instead of selecting the Browser Use CLI/harness.
+  backend: "off"
   inactivity_timeout: 120
   command_timeout: 30
   record_sessions: false
@@ -184,52 +187,52 @@ bedrock:
     trace: disabled
 auxiliary:
   vision:
-    provider: openai-codex
+    provider: auto
     model: gpt-5.6-luna
-    base_url: https://chatgpt.com/backend-api/codex
+    base_url: ''
     api_key: ''
     timeout: 120
     extra_body: {}
     download_timeout: 30
   web_extract:
-    provider: openai-codex
+    provider: auto
     model: gpt-5.6-luna
-    base_url: https://chatgpt.com/backend-api/codex
+    base_url: ''
     api_key: ''
     timeout: 360
     extra_body: {}
   compression:
-    provider: openai-codex
+    provider: auto
     model: gpt-5.6-luna
-    base_url: https://chatgpt.com/backend-api/codex
+    base_url: ''
     api_key: ''
     timeout: 120
     extra_body: {}
   skills_hub:
-    provider: openai-codex
+    provider: auto
     model: gpt-5.6-luna
-    base_url: https://chatgpt.com/backend-api/codex
+    base_url: ''
     api_key: ''
     timeout: 30
     extra_body: {}
   approval:
-    provider: openai-codex
+    provider: auto
     model: gpt-5.6-luna
-    base_url: https://chatgpt.com/backend-api/codex
+    base_url: ''
     api_key: ''
     timeout: 30
     extra_body: {}
   mcp:
-    provider: openai-codex
+    provider: auto
     model: gpt-5.6-luna
-    base_url: https://chatgpt.com/backend-api/codex
+    base_url: ''
     api_key: ''
     timeout: 30
     extra_body: {}
   title_generation:
-    provider: openai-codex
+    provider: auto
     model: gpt-5.6-luna
-    base_url: https://chatgpt.com/backend-api/codex
+    base_url: ''
     api_key: ''
     timeout: 30
     extra_body: {}
@@ -241,53 +244,53 @@ auxiliary:
     timeout: 30
     extra_body: {}
   triage_specifier:
-    provider: openai-codex
+    provider: auto
     model: gpt-5.6-luna
-    base_url: https://chatgpt.com/backend-api/codex
+    base_url: ''
     api_key: ''
     timeout: 120
     extra_body: {}
   kanban_decomposer:
-    provider: openai-codex
+    provider: auto
     model: gpt-5.6-luna
-    base_url: https://chatgpt.com/backend-api/codex
+    base_url: ''
     api_key: ''
     timeout: 180
     extra_body: {}
   profile_describer:
-    provider: openai-codex
+    provider: auto
     model: gpt-5.6-luna
-    base_url: https://chatgpt.com/backend-api/codex
+    base_url: ''
     api_key: ''
     timeout: 60
     extra_body: {}
   curator:
-    provider: openai-codex
+    provider: auto
     model: gpt-5.6-luna
-    base_url: https://chatgpt.com/backend-api/codex
+    base_url: ''
     api_key: ''
     timeout: 600
     extra_body: {}
   monitor:
-    provider: openai-codex
+    provider: auto
     model: gpt-5.6-luna
-    base_url: https://chatgpt.com/backend-api/codex
+    base_url: ''
     api_key: ''
     timeout: 60
     extra_body: {}
   session_search:
-    provider: openai-codex
+    provider: auto
     model: gpt-5.6-luna
-    base_url: https://chatgpt.com/backend-api/codex
+    base_url: ''
     api_key: ''
     timeout: 30
     extra_body: {}
     max_concurrency: 3
   flush_memories:
     api_key: ''
-    base_url: https://chatgpt.com/backend-api/codex
+    base_url: ''
     model: gpt-5.6-luna
-    provider: openai-codex
+    provider: auto
     timeout: 30
 display:
   compact: false
@@ -685,7 +688,7 @@ paste_collapse_threshold_fallback: 5
 paste_collapse_char_threshold: 2000
 _config_version: 30
 fallback_model:
-  model: gpt-5.5
+  model: gpt-5.6-terra
   provider: openai-codex
   base_url: https://chatgpt.com/backend-api/codex
 group_sessions_per_user: true

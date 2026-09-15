@@ -54,18 +54,27 @@ docker run -it --rm \
 
 ### 2. 設定 Hermes 執行變數與金鑰
 
-你可以將本專案提供的備用範本 `.env.example` 和 `config.example.yaml` 複製到 `~/.hermes/` 下來使用：
+你可以用本專案範本補齊尚未建立的 runtime 設定檔；已有檔案時不要覆蓋 Setup Wizard 寫入的金鑰：
 
 ```bash
-cp .env.example ~/.hermes/.env
-cp config.example.yaml ~/.hermes/config.yaml
+cp -n .env.example ~/.hermes/.env
+cp -n config.example.yaml ~/.hermes/config.yaml
 ```
 
 **注意：** `.env.example` 是 Hermes 的**執行期**設定範本（API Key、平台 Token、Allowlist 等），複製到 `~/.hermes/.env` 給容器內 Hermes 讀取。Compose 編排選項（Port、資源上限、`HERMES_VERSION`）是另一回事，有內建預設，見「設定參考 → 環境變數」。
 
 依你要接的平台（Telegram / Discord / Slack），各自需要設定對應的 `XXX_BOT_TOKEN` 與 `XXX_ALLOWED_USERS`，請參考 [docs/platforms/](docs/platforms/) 下的對應指南。
 
-修改 `~/.hermes/.env` 後，重啟 Gateway 套用：
+本專案的範本預設使用官方 OpenAI API。請在 `~/.hermes/.env` 填入 `OPENAI_API_KEY`，並為
+dashboard 設定非預設帳密：
+
+```ini
+OPENAI_API_KEY=...
+HERMES_DASHBOARD_BASIC_AUTH_USERNAME=your-user
+HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=use-a-long-unique-password
+```
+
+修改 `~/.hermes/.env` 或 `config.yaml` 後，重啟 Gateway 套用：
 
 ```bash
 ./hermes-run.sh restart
@@ -101,7 +110,7 @@ cp config.example.yaml ~/.hermes/config.yaml
 ```
 
 - **切換版本啟動**：`HERMES_VERSION=v2026.9.14 ./hermes-run.sh up`；分身要固定跑某版就寫進 `agents/<name>.conf`。沒設就用預設 pin。`up` 不會自動 build，image 不存在會直接報錯，先跑 `./hermes-build.sh <版本>`。
-- **patches 只對應目前 pin 的版本**：上游改動大時（例如 v2026.6.5 → v2026.9.14 把 DingTalk 搬進 plugin）patch 會套不上，build 會在 `apply.py` 停下。要重建舊版請 checkout 當時的 commit，或直接把手上的舊 image `docker tag` 成該版本 tag。
+- **patches 只對應目前 pin 的版本**：上游改動大時，patch 會套不上，build 會在 `apply.py` 停下。要重建舊版請 checkout 對應 commit，或直接把手上的舊 image `docker tag` 成該版本 tag。
 - **升級穩定版**：改 [`hermes-build.sh`](./hermes-build.sh) 的 `HERMES_VERSION_DEFAULT` 並 commit；`docker-compose.yml` / `Dockerfile` 內同名預設是「直接 `docker compose build`」的備援，請一併同步。
 - **快速測試**：也可不經腳本直接 `docker compose build`（吃上述備援預設）。
 
@@ -156,7 +165,7 @@ docker run --rm --entrypoint /opt/hermes/.venv/bin/python \
 
 ### 環境變數 (Environment Variables)
 
-下表是 Docker Compose 傳入容器的變數，多數是有安全預設的編排選項（在 `docker-compose.yml`；`HERMES_VERSION` 預設在 `hermes-build.sh`），可直接沿用或覆寫。要覆寫：單次用環境變數（如 `HERMES_GATEWAY_PORT=8643 ./hermes-run.sh up`），多 agent 則寫在各自的 `agents/<name>.conf`。**例外：`API_SERVER_KEY` 與 `HERMES_DASHBOARD_BASIC_AUTH_PASSWORD` 是驗證用的，預設不安全，務必更改。** Hermes 執行期設定（API Key、平台 Token 等）見 [`.env.example`](./.env.example)，複製到 `~/.hermes/.env` 使用。
+下表是 Docker Compose 傳入容器的變數，多數是有安全預設的編排選項（在 `docker-compose.yml`；`HERMES_VERSION` 預設在 `hermes-build.sh`），可直接沿用或覆寫。要覆寫：單次用環境變數（如 `HERMES_GATEWAY_PORT=8643 ./hermes-run.sh up`），多 agent 則寫在各自的 `agents/<name>.conf`。`API_SERVER_KEY` 是驗證用的機密，請只設定在 `~/.hermes/.env`；其他 Hermes 執行期設定（API Key、平台 Token 等）也在該檔案，範本見 [`.env.example`](./.env.example)。
 
 | 變數 | 預設值 | 說明 |
 | --- | --- | --- |
@@ -167,9 +176,9 @@ docker run --rm --entrypoint /opt/hermes/.venv/bin/python \
 | `HERMES_GATEWAY_PORT` | `8642` | Gateway 對外 Port |
 | `HERMES_DASHBOARD_PORT` | `9119` | Dashboard 對外 Port |
 | `HERMES_DASHBOARD` | `1` | 是否在容器內啟用 Web Dashboard（s6 服務） |
-| `HERMES_DASHBOARD_BASIC_AUTH_USERNAME` | `hermes` | Dashboard 登入帳號。v2026.9.x 起對外綁定一律要認證，舊的 `HERMES_DASHBOARD_INSECURE` 已失效 |
-| `HERMES_DASHBOARD_BASIC_AUTH_PASSWORD` | `hermes_default_secret` | Dashboard 登入密碼，**預設不安全，務必更改**。這兩個與 `API_SERVER_KEY` 也可寫在 `~/.hermes/.env`（會蓋過 compose 預設），見 `.env.example` 末段 |
-| `API_SERVER_KEY` | `hermes_default_secret` ⚠️ | API Server 驗證金鑰；**務必更改**（預設不安全、公開已知） |
+| `HERMES_DASHBOARD_BASIC_AUTH_USERNAME` | `hermes` | Dashboard 登入帳號；對外綁定必須設定認證 |
+| `HERMES_DASHBOARD_BASIC_AUTH_PASSWORD` | `hermes_default_secret` | Dashboard 登入密碼，**預設不安全，務必更改**。帳密也可寫在 `~/.hermes/.env`（會蓋過 Compose 預設），見 `.env.example` 末段。 |
+| `HERMES_RUNTIME_DIR` | `/run/hermes` | container-local tmpfs，供 gateway control / watchdog Unix socket 使用；不要改到 host bind mount。 |
 | `HERMES_MEMORY_LIMIT` | `4G` | 容器記憶體限制（Gateway + Dashboard 同容器） |
 | `HERMES_CPU_LIMIT` | `2.0` | 容器 CPU 限制 |
 | `HERMES_SHM_SIZE` | `1g` | Browser Tools 共享記憶體 |

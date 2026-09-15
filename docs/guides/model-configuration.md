@@ -8,7 +8,7 @@ Hermes Agent 將「機密設定（如 API Keys）」與「一般設定（如選�
 
 Hermes 所有的運行時設定皆放置於 `~/.hermes/` 目錄下（Docker Compose 預設會將此目錄掛載到容器內）。
 
-- **`~/.hermes/.env`**：專門用來存放機密資訊，例如 API Keys（`GEMINI_API_KEY`、`OPENROUTER_API_KEY` 等）。
+- **`~/.hermes/.env`**：專門用來存放機密資訊，例如 `OPENAI_API_KEY` 與平台 token。
   > **注意：** `.env` 內的 `LLM_MODEL` 變數已不再生效，僅供參考，請勿在此設定預設模型。
 - **`~/.hermes/config.yaml`**：存放非機密的系統設定，包含你想設定的 `model` 和 `fallback_providers`。
 
@@ -29,7 +29,7 @@ Hermes 所有的運行時設定皆放置於 `~/.hermes/` 目錄下（Docker Comp
   或透過單行指令快速設定：
 
   ```bash
-  hermes config set model anthropic/claude-opus-4.6
+  hermes config set model gpt-5.6-terra
   ```
 
 - **Docker 環境**：
@@ -41,7 +41,7 @@ Hermes 所有的運行時設定皆放置於 `~/.hermes/` 目錄下（Docker Comp
   ```bash
   docker run -it --rm \
     -v ~/.hermes:/opt/data \
-    nousresearch/hermes-agent model
+    kakalin/hermes-agent:v2026.9.14 model
   ```
 
   或透過單行指令快速設定：
@@ -49,7 +49,7 @@ Hermes 所有的運行時設定皆放置於 `~/.hermes/` 目錄下（Docker Comp
   ```bash
   docker run --rm \
     -v ~/.hermes:/opt/data \
-    nousresearch/hermes-agent config set model anthropic/claude-opus-4.6
+    kakalin/hermes-agent:v2026.9.14 config set model gpt-5.6-terra
   ```
 
 ### 方法 B：手動修改設定檔
@@ -58,9 +58,10 @@ Hermes 所有的運行時設定皆放置於 `~/.hermes/` 目錄下（Docker Comp
 
 ```yaml
 model:
-  default: anthropic/claude-opus-4.6
-  provider: auto
-  base_url: https://openrouter.ai/api/v1
+  default: gpt-5.6-terra
+  provider: openai-api
+  base_url: https://api.openai.com/v1
+  api_mode: codex_responses
 ```
 
 *(請確保在 `~/.hermes/.env` 中已填寫對應的 API Key)*
@@ -78,23 +79,24 @@ model:
 ```bash
 docker run --rm \
   -v ~/.hermes:/opt/data \
-  nousresearch/hermes-agent config set fallback_model.provider openai
+    kakalin/hermes-agent:v2026.9.14 config set fallback_model.provider openai-api
 
 docker run --rm \
   -v ~/.hermes:/opt/data \
-  nousresearch/hermes-agent config set fallback_model.model gpt-5.5
+    kakalin/hermes-agent:v2026.9.14 config set fallback_model.model gpt-5.6-terra
 ```
 
 ### 方法 B：手動修改設定檔 (Fallback)
 
 1. 打開 `~/.hermes/config.yaml`。
 
-2. 在最下方加入（或找到）`fallback_model` 區塊，並明確指定你要的備用服務商與模型名稱（以下使用 OpenAI 的 GPT-5.5 為例）：
+2. 在最下方加入（或找到）`fallback_model` 區塊，並明確指定你要的備用服務商與模型名稱：
 
     ```yaml
     fallback_model:
-      provider: openai
-      model: gpt-5.5
+      provider: openai-api
+      model: gpt-5.6-terra
+      base_url: https://api.openai.com/v1
     ```
 
     > **注意：**

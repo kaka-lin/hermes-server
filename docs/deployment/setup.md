@@ -36,10 +36,7 @@ docker run -it --rm \
   -v ~/.hermes:/opt/data \
   nousresearch/hermes-agent setup
 
-# 2. 啟動 gateway（用 HERMES_DASHBOARD=1 在同一容器內一併啟用 Web Dashboard）
-#    這是官方建議做法：dashboard 以 s6 服務跟 gateway 同容器跑，共用 /opt/data。
-#    HERMES_DASHBOARD_INSECURE=1 跳過 OAuth gate，允許在信任的 LAN 上無認證存取；
-#    對外請改用 reverse proxy 或設定 OAuth。
+# 2. 啟動 gateway 與同容器的 Web Dashboard；非 loopback dashboard 必須設定認證。
 docker run -d \
   --name hermes \
   --restart unless-stopped \
@@ -48,7 +45,8 @@ docker run -d \
   -v ~/.hermes:/opt/data \
   --shm-size=1g \
   -e HERMES_DASHBOARD=1 \
-  -e HERMES_DASHBOARD_INSECURE=1 \
+  -e HERMES_DASHBOARD_BASIC_AUTH_USERNAME=hermes \
+  -e HERMES_DASHBOARD_BASIC_AUTH_PASSWORD='use-a-long-unique-password' \
   nousresearch/hermes-agent gateway run
 ```
 
@@ -71,8 +69,6 @@ docker build -t hermes:local -f Dockerfile .
 
 完成基礎部署後，請根據您的需求參閱以下進階配置：
 
-- [Allowlist 與授權設定](../guides/allowlist-config.md)
 - [瀏覽器自動化指南](../guides/browser-automation.md)
-- [Telegram 整合與 Bot 設定指南](../platforms/telegram.md)
 - [Discord 全功能安裝與配置指南](../platforms/discord.md)
-- [Slack App 設定（Socket Mode）](../platforms/slack.md)
+- 平台 token 與 allowlist 的欄位請見本專案 [`.env.example`](../../.env.example)。

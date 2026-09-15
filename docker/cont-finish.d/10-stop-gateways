@@ -1,0 +1,8 @@
+#!/bin/sh
+# Stop dynamic gateway services before s6's final kill sweep.
+# The 20-second wait must stay below S6_KILL_FINISH_MAXTIME and stop_grace_period.
+for d in /run/service/gateway-*/; do
+  [ -d "$d" ] || continue
+  /command/s6-svc -wD -d -T 20000 "$d" &
+done
+wait

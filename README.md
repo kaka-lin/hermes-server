@@ -87,7 +87,7 @@ cp config.example.yaml ~/.hermes/config.yaml
 
 ### 建置 (Build)
 
-在官方 base image 上套用 `patches/` 的修補（見 [`patches/`](./patches/)），產出客製化成品 image（`kakalin/hermes-agent:latest`）。base image 版本是 [`hermes-build.sh`](./hermes-build.sh) 的單一旋鈕，預設 pin 在穩定 tag。
+在官方 base image 上套用 `patches/` 的修補（見 [`patches/`](./patches/)），產出客製化成品 image `kakalin/hermes-agent:<版本>`。成品 tag 跟 base 版本同名，所以多個版本可以並存、隨時切換。base image 版本是 [`hermes-build.sh`](./hermes-build.sh) 的單一旋鈕，預設 pin 在穩定 tag。
 
 ```bash
 # 建置預設 pin 版本（穩定）
@@ -96,10 +96,12 @@ cp config.example.yaml ~/.hermes/config.yaml
 # 改建上游最新（浮動 tag，自動 --pull 刷新；非穩定發布版）
 ./hermes-build.sh latest
 
-# 建指定 tag
-./hermes-build.sh v2026.7.0
+# 建指定 tag → 產出 kakalin/hermes-agent:v2026.9.14
+./hermes-build.sh v2026.9.14
 ```
 
+- **切換版本啟動**：`HERMES_VERSION=v2026.9.14 ./hermes-run.sh up`；分身要固定跑某版就寫進 `agents/<name>.conf`。沒設就用預設 pin。`up` 不會自動 build，image 不存在會直接報錯，先跑 `./hermes-build.sh <版本>`。
+- **patches 只對應目前 pin 的版本**：上游改動大時（例如 v2026.6.5 → v2026.9.14 把 DingTalk 搬進 plugin）patch 會套不上，build 會在 `apply.py` 停下。要重建舊版請 checkout 當時的 commit，或直接把手上的舊 image `docker tag` 成該版本 tag。
 - **升級穩定版**：改 [`hermes-build.sh`](./hermes-build.sh) 的 `HERMES_VERSION_DEFAULT` 並 commit；`docker-compose.yml` / `Dockerfile` 內同名預設是「直接 `docker compose build`」的備援，請一併同步。
 - **快速測試**：也可不經腳本直接 `docker compose build`（吃上述備援預設）。
 
@@ -141,14 +143,14 @@ base image 版本 pin 在 `HERMES_VERSION`（預設見 [`hermes-build.sh`](./her
 
 ```bash
 # 服務正在跑時（最常用，輸出乾淨）；多 agent 時把 hermes 換成目標容器名（如 hermes-katherine）
-docker exec hermes bash -c '/opt/hermes/.venv/bin/python /opt/hermes/hermes version'
+docker exec hermes bash -c '/opt/hermes/.venv/bin/python /opt/hermes/hermes --version'
 
 # 服務沒在跑時：用建置好的 image，--entrypoint 繞過 s6 避免拉起服務
 docker run --rm --entrypoint /opt/hermes/.venv/bin/python \
-  kakalin/hermes-agent:latest /opt/hermes/hermes version
+  kakalin/hermes-agent:v2026.9.14 /opt/hermes/hermes --version
 ```
 
-輸出範例：`Hermes Agent v0.16.0 (2026.6.5) · upstream f8adefde`。
+輸出範例：`Hermes Agent v0.21.3 (2026.9.14) · upstream 345cd2b0`（v2026.9.x 起子命令 `version` 改為 `--version` 旗標）。
 
 ## 設定參考 (Configuration)
 
@@ -159,7 +161,7 @@ docker run --rm --entrypoint /opt/hermes/.venv/bin/python \
 | 變數 | 預設值 | 說明 |
 | --- | --- | --- |
 | `TZ` | `Asia/Taipei` | Container 時區 |
-| `HERMES_VERSION` | `v2026.6.5` | 上游 base image 版本 tag（build 時）；設 `latest` 可測上游最新 |
+| `HERMES_VERSION` | `v2026.9.14` | 上游 base image 版本 tag；build 時決定 base，`up` 時決定跑 `kakalin/hermes-agent:<版本>` 哪一個 |
 | `HERMES_CONTAINER_NAME` | `hermes` | Container Name |
 | `HERMES_DATA_DIR` | `~/.hermes` | Host 上的資料目錄（多 Profile 時切換此路徑） |
 | `HERMES_GATEWAY_PORT` | `8642` | Gateway 對外 Port |

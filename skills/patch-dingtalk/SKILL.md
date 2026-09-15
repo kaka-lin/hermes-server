@@ -1,18 +1,20 @@
 ---
 name: patch-dingtalk
-description: "Patches Hermes Agent's DingTalk integration with two build-time fixes: (1) routing — explicit dingtalk:cidXXXX== targets reach that specific group via the official robot API instead of the home channel or a single webhook; (2) Stream handler — rebuilds _IncomingHandler after the lazy SDK install so the bot actually replies instead of crashing with no raw_process()"
+description: "Fixes Hermes Agent's DingTalk integration at image build time: (1) routing patch — explicit dingtalk:cidXXXX== targets reach that specific group via the official robot API instead of the home channel or a single webhook; (2) Stream handler — the SDK is baked into the image so _IncomingHandler binds to ChatbotHandler at import and the bot replies instead of crashing with no raw_process()"
 version: 1.0.0
 ---
 # Patch DingTalk
 
 Hermes Agent's DingTalk integration has two independent defects upstream. Both
-are fixed by patches applied at build time
-([Dockerfile](../../Dockerfile)) against the pinned base image
-(`nousresearch/hermes-agent:v2026.6.5`).
-Each patch is idempotent, so a re-run is a no-op.
+are fixed at image build time ([Dockerfile](../../Dockerfile)) against the
+pinned base image (`nousresearch/hermes-agent:v2026.9.14`): one by a patch, one
+by baking the SDK into the venv. Patches are idempotent, so a re-run is a no-op.
 
-The two patches address **different symptoms** — read the one that matches what
-you are seeing, or apply both after a rebuild.
+Since v2026.9.x DingTalk lives in `plugins/platforms/dingtalk/adapter.py`, not
+`gateway/platforms/dingtalk.py`.
+
+The two fixes address **different symptoms** — read the one that matches what
+you are seeing.
 
 ## 1. Routing — messages reach the wrong group
 
@@ -22,52 +24,45 @@ the group it names.
 
 Two halves of one fix:
 
-- **Target parsing** — `_parse_target_ref` has no `dingtalk` branch, so
-  `dingtalk:cidXXXX==` parses as `None` (not explicit). The directory-resolution
-  path re-parses through the same branch-less function, gets `None` again, and
-  `_handle_send` falls back to `DINGTALK_HOME_CHANNEL` — silently delivering to
-  the wrong group. The patch adds the branch so the conversation id routes
-  directly.
+- **Target parsing** — the plugin registers no `parse_target_ref_fn`, so
+  `dingtalk:cidXXXX==` is not recognised as explicit and the send falls back to
+  `DINGTALK_HOME_CHANNEL` — silently delivering to the wrong group. The patch
+  registers a parser that treats any `cid...` id as an explicit target.
 
-- **Send mechanism** — `_send_dingtalk` only knows the static custom-robot
-  webhook (`DINGTALK_WEBHOOK_URL`), which is bound to **one** group, so even a
-  correctly parsed `cid` is ignored at send time. The patch adds the official
-  enterprise robot API (`groupMessages/send`): when `DINGTALK_CLIENT_ID` /
-  `DINGTALK_CLIENT_SECRET` are set and `chat_id` is a group id (`cid...`), it
-  fetches an `accessToken` and posts with `openConversationId`, delivering to
-  that specific group; it falls back to the webhook on failure or for non-group
-  targets. The official path verifies the response body (`processQueryKey`)
-  before reporting success, so a `200`-with-error-body falls back rather than
-  reporting a false success.
+- **Send mechanism** — the live adapter's `send()` only knows per-session
+  webhooks, which exist after an inbound message and expire; the cron-process
+  `_standalone_send` only knows the static custom-robot webhook
+  (`DINGTALK_WEBHOOK_URL`), bound to **one** group. The patch adds the official
+  enterprise robot API (`groupMessages/send`) to both: when `chat_id` is a group
+  id (`cid...`) and no session webhook is known, it posts with
+  `openConversationId`, delivering to that specific group, and falls back to the
+  webhook otherwise. The official path verifies the response body
+  (`processQueryKey`) before reporting success, so a `200`-with-error-body falls
+  back rather than reporting a false success.
 
 ## 2. Stream handler — the bot never replies
 
-Patch: `patches/dingtalk-stream-handler.patch`. Symptom: every inbound message logs
-`'_IncomingHandler' object has no attribute 'raw_process'` and the bot never
-replies.
+Fix: the Dockerfile exports the `dingtalk` extra from upstream's lockfile
+(`uv export --frozen --extra dingtalk`) and installs it into the venv, so the
+SDK is present at import time. Symptom
+without it: every inbound message logs `'_IncomingHandler' object has no
+attribute 'raw_process'` and the bot never replies.
 
-`dingtalk-stream` is not in the base image; it is lazy-installed at runtime by
-`tools.lazy_deps.ensure("platform.dingtalk")`. When `dingtalk.py` is first
-imported the package is still absent, so the top-level `import dingtalk_stream`
-fails and the module-level `class _IncomingHandler(... if
-DINGTALK_STREAM_AVAILABLE else object)` binds to `object`.
-`check_dingtalk_requirements()` later installs the SDK and flips the flag, but
-upstream never rebinds the class, so it stays an `object` subclass with no
+`dingtalk-stream` is not in the base image; upstream lazy-installs it at runtime
+into `HERMES_LAZY_INSTALL_TARGET` (the venv itself is sealed). When the adapter
+module is first imported the package is still absent, so the top-level
+`import dingtalk_stream` fails and the module-level `class _IncomingHandler(...
+if DINGTALK_STREAM_AVAILABLE else object)` binds to `object`.
+`ensure_dingtalk_deps()` later installs the SDK and rebinds the module globals,
+but never the class, so it stays an `object` subclass with no
 `ChatbotHandler.raw_process()`.
 
-Two halves of one fix:
-
-- **Handler rebuild** — after the lazy install flips the flags, rebuild
-  `_IncomingHandler` as a real `ChatbotHandler` subclass. `type()` is used
-  rather than `__bases__ =` assignment, which Python 3.13 prohibits for an
-  object-derived heap class.
-
-- **Explicit base init** — the rebuilt class's copied `__init__` must NOT use
-  zero-arg `super()`: a method copied via `type()` keeps its original implicit
-  `__class__` cell (pointing at the discarded object-based class), so
-  `super().__init__()` raises `TypeError` at instantiation. Naming the base
-  class directly sidesteps the stale cell and works for both the normal and the
-  rebuilt class.
+Installing the extra at build time removes the lazy path entirely. The earlier
+`dingtalk-stream-handler.patch` (rebuild the class via `type()` after the lazy
+install) is gone. Installing from upstream's lockfile keeps `cryptography` at the
+pinned 50.x, which a plain `pip install alibabacloud-dingtalk` would drag back
+below 49. Do not use `uv sync` for this: it honours `.python-version` (3.11)
+and recreates the venv from scratch, dropping every messaging extra.
 
 ## Trigger
 
@@ -75,15 +70,16 @@ When rebuilding or restarting the container, or when DingTalk misbehaves:
 
 - Messages to an explicit `dingtalk:cidXXXX==` group land in the home channel or
   the webhook's single group → apply patch 1.
-- The bot never replies and logs `no attribute 'raw_process'` → apply patch 2.
+- The bot never replies and logs `no attribute 'raw_process'` → the image was
+  built without the `dingtalk` extra; rebuild with the current Dockerfile.
 
 ## Steps
 
 Patches are applied at image build time by `patches/apply.py` (see
 [Dockerfile](../../Dockerfile)). To (re)apply:
 
-1. Rebuild the image: `docker compose build` (use `--pull` to refresh the base).
-2. Recreate the container: `docker compose up -d`.
+1. Rebuild the image: `./hermes-build.sh` (see the repo README for version tags).
+2. Recreate the container: `./hermes-run.sh up`.
 
 The applier is idempotent — patches already present are skipped — and aborts
 the build with a clear error if an upstream change makes a patch no longer

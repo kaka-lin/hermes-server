@@ -223,7 +223,7 @@ hermes -p manager2 chat -q "去檢查IG有沒有新的限時動態" &
 ```yaml
 services:
   hermes-work:
-    image: kakalin/hermes-agent:latest
+    image: kakalin/hermes-agent:${HERMES_VERSION:-v2026.9.14}
     container_name: hermes-work
     restart: unless-stopped
     command: gateway run            # 永遠不帶 -p
@@ -236,7 +236,7 @@ services:
     networks: [hermes-net]
 
   hermes-personal:
-    image: kakalin/hermes-agent:latest
+    image: kakalin/hermes-agent:${HERMES_VERSION:-v2026.9.14}
     container_name: hermes-personal
     restart: unless-stopped
     command: gateway run

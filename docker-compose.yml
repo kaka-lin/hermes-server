@@ -4,8 +4,9 @@ services:
       context: .
       args:
         # 上游 base image 版本;預設 pin 穩定 tag,可用 HERMES_VERSION=latest 切到最新測上游
-        HERMES_VERSION: ${HERMES_VERSION:-v2026.6.5}
-    image: kakalin/hermes-agent:latest
+        HERMES_VERSION: ${HERMES_VERSION:-v2026.9.14}
+    # 成品 tag 跟 base 版本同名，多個版本可並存；HERMES_VERSION 同時決定 build 與 up 用哪一版
+    image: kakalin/hermes-agent:${HERMES_VERSION:-v2026.9.14}
     container_name: "${HERMES_CONTAINER_NAME:-hermes}"
     restart: unless-stopped
     command: [ "bash", "-c", "python3 /opt/data/scripts/cdp_proxy.py & exec hermes gateway run" ]

@@ -195,7 +195,9 @@ status_line() (
 
 # ---- Commands ----
 
-cmd_up() { for_target "${1:-}" up -d; }
+# --no-build --pull never：image 不存在時直接報錯，而不是默默重建 base image（數 GB、數分鐘）。
+# 先跑 ./hermes-build.sh <版本>，或在 conf 裡把 HERMES_VERSION 指到已建好的 tag。
+cmd_up() { for_target "${1:-}" up -d --no-build --pull never; }
 cmd_down() { for_target "${1:-}" down; }
 cmd_restart() { for_target "${1:-}" restart; }
 

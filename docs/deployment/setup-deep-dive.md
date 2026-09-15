@@ -47,14 +47,14 @@
 
 本專案刻意把兩種設定分開：
 
-- **Repo `.env`**：給 Docker Compose 解析 `${...}`，只放 port、image tag、resource limit、`HERMES_DATA_DIR` 等編排設定。
+- **Repo `versions.env`**：給 wrapper scripts 傳入 Docker Compose，只放 `HERMES_VERSION`、`AGENT_BROWSER_VERSION` 等 image build 設定。可由 [`versions.env.example`](../../versions.env.example) 建立。
 - **`~/.hermes/.env`**：由官方 image 從容器內 `/opt/data/.env` 讀取，放 API keys、平台 token、allowlist。
 
 這跟官方 Docker 文件一致：container 本身是 stateless，所有 Hermes 狀態都在 `/opt/data`，host 預設對應 `~/.hermes`。
 
 ## 4. 為何不使用 `env_file`
 
-官方 Docker 路徑已經會讀 `/opt/data/.env`。如果同時把 repo `.env` 用 `env_file:` 注入容器，會產生兩份 runtime 設定來源，排錯時很容易不知道哪一份生效。
+官方 Docker 路徑已經會讀 `/opt/data/.env`。如果同時把 repo 的版本檔或 runtime `.env` 用 `env_file:` 注入容器，會產生兩份 runtime 設定來源，排錯時很容易不知道哪一份生效。
 
 因此本 compose 不使用 `env_file:`。要改 Hermes runtime 行為時，請改 `~/.hermes/.env` 後重啟 gateway：
 

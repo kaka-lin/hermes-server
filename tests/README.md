@@ -7,6 +7,8 @@ python3 tests/test_patch_apply.py
 python3 tests/test_runtime_socket_paths.py
 python3 tests/test_stream_consumer_interim_diagnostic.py
 python3 tests/test_login_shell_hermes_path.py
+python3 tests/test_build_script_compose_version.py
+python3 tests/test_compose_agent_browser_version.py
 ruby tests/test_openai_api_routes.rb
 ```
 

@@ -28,6 +28,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENTS_DIR="$SCRIPT_DIR/agents"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
+VERSIONS_FILE="$SCRIPT_DIR/versions.env"
+COMPOSE=(docker compose)
+[[ -f "$VERSIONS_FILE" ]] && COMPOSE+=(--env-file "$VERSIONS_FILE")
 
 # 主 agent 的 compose 預設（須與 docker-compose.yml 的 :- 預設一致）
 MAIN_GATEWAY_PORT=8642
@@ -108,7 +111,7 @@ compose_one() (
   fi
   # 只在 up 同步：down/restart/logs 不需要動 host 檔案。
   [[ "${1:-}" == up ]] && sync_runtime "${HERMES_DATA_DIR:-$HOME/.hermes}"
-  docker compose --project-directory "$SCRIPT_DIR" -p "$project" -f "$COMPOSE_FILE" "$@"
+  "${COMPOSE[@]}" --project-directory "$SCRIPT_DIR" -p "$project" -f "$COMPOSE_FILE" "$@"
 )
 
 # 把 repo 的容器內 runtime 腳本同步進 agent 的 data dir（host 端路徑）。

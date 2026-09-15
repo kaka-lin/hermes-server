@@ -7,7 +7,6 @@
 
 - `*.patch` — 每個修改一個 diff，單一真相來源，可直接 PR / 分享。
 - `apply.py` — 泛用 applier：讀 `*.patch`，冪等套用，context 不符則明確報錯。
-- `test_apply.py` — apply.py 的 stdlib 煙霧測試（`python3 patches/test_apply.py`）。
 - `.src/` — 重算 diff 用的本地工作區（gitignore，用時再生）。
 
 ## 現有 patch
@@ -63,7 +62,7 @@ cp "patches/.src/a/$P" "patches/.src/b/$P"   # 在 b/ 上改成想要的樣子
 
 ```bash
 HERMES_ROOT=/path/to/hermes python3 patches/apply.py    # 本地對某個樹套用
-python3 patches/test_apply.py                            # 跑煙霧測試
+python3 tests/test_patch_apply.py                        # 跑 applier 煙霧測試
 ```
 
 build 時的套用見根目錄 [Dockerfile](../Dockerfile)。

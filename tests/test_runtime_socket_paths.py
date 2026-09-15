@@ -1,18 +1,10 @@
-"""Runtime socket regression test against a built Hermes image.
-
-Run with the upstream image first to prove the missing behavior:
-    python3 patches/test_runtime_socket_paths.py
-
-Then point it at the custom image after ``docker compose build``:
-    HERMES_SOCKET_TEST_IMAGE=kakalin/hermes-agent:v2026.9.14 \
-        python3 patches/test_runtime_socket_paths.py
-"""
+"""Runtime socket regression test against the built custom Hermes image."""
 import os
 import subprocess
 import sys
 
 
-IMAGE = os.environ.get("HERMES_SOCKET_TEST_IMAGE", "nousresearch/hermes-agent:v2026.9.14")
+IMAGE = os.environ.get("HERMES_SOCKET_TEST_IMAGE", "kakalin/hermes-agent:v2026.9.14")
 RUNTIME_DIR = "/run/hermes"
 PROBE = """
 from pathlib import Path

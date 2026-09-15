@@ -1,0 +1,75 @@
+--- a/gateway/control_socket.py
++++ b/gateway/control_socket.py
+@@ -33,8 +33,15 @@
+ _MAX_REQUEST_BYTES = 64 * 1024
+ _MAX_RESPONSE_BYTES = 512 * 1024
+ _DEFAULT_CLIENT_TIMEOUT = 2.0
++_RUNTIME_DIR_ENV = "HERMES_RUNTIME_DIR"
+ 
+ 
++def _runtime_socket_dir() -> Optional[Path]:
++    """Optional container-local directory for ephemeral Unix socket nodes."""
++    value = os.environ.get(_RUNTIME_DIR_ENV, "").strip()
++    return Path(value) if value else None
++
++
+ def _home_hash(home: Path) -> str:
+     return hashlib.sha256(os.path.normcase(str(Path(home).expanduser().resolve(strict=False))).encode("utf-8")).hexdigest()[:16]
+ 
+@@ -59,12 +66,17 @@
+ 
+ def resolve_server_socket_path(home: Path) -> tuple[Path, Optional[Path]]:
+     """Return ``(bind_path, pointer_file)``; pointer_file is set only for the temp-dir fallback."""
++    if runtime_dir := _runtime_socket_dir():
++        return runtime_dir / _SOCKET_FILENAME, None
+     direct = Path(home) / _SOCKET_FILENAME
+     return (direct, None) if _fits_sun_path(direct) else (_fallback_socket_path(home), Path(home) / _POINTER_FILENAME)
+ 
+ 
+ def resolve_client_socket_path(home: Path) -> Optional[Path]:
+     """Where a client should connect for ``home``, or None when nothing exists."""
++    if runtime_dir := _runtime_socket_dir():
++        runtime_socket = runtime_dir / _SOCKET_FILENAME
++        return runtime_socket if runtime_socket.exists() else None
+     direct = Path(home) / _SOCKET_FILENAME
+     if direct.exists():
+         return direct
+@@ -146,6 +158,7 @@
+ 
+     async def _start_posix(self) -> bool:
+         bind_path, pointer_file = resolve_server_socket_path(self._home)
++        bind_path.parent.mkdir(parents=True, exist_ok=True)
+         # We only get here after winning the PID-file O_EXCL race, so any existing
+         # file is stale or a collision — never a live sibling.
+         with contextlib.suppress(OSError):
+--- a/gateway/shutdown_watchdog.py
++++ b/gateway/shutdown_watchdog.py
+@@ -43,6 +43,7 @@
+ DEFAULT_LOOP_WATCHDOG_MAX_STRIKES = 3
+ _HEARTBEAT_RELATIVE = ("state", "gateway.heartbeat")
+ _WATCHDOG_DUMP_RELATIVE = ("logs", "gateway-shutdown-watchdog.log")
++_RUNTIME_DIR_ENV = "HERMES_RUNTIME_DIR"
+ 
+ 
+ def _coerce_float(value: Any, default: float, floor: float = 0.0) -> float:
+@@ -162,6 +163,12 @@
+     return home if home is not None else _process_hermes_home()
+ 
+ 
++def _runtime_socket_dir() -> Optional[Path]:
++    """Optional container-local directory for ephemeral Unix socket nodes."""
++    value = os.environ.get(_RUNTIME_DIR_ENV, "").strip()
++    return Path(value) if value else None
++
++
+ def get_loop_heartbeat_path(home: Optional[Path] = None) -> Path:
+     return _home(home).joinpath(*_HEARTBEAT_RELATIVE)
+ 
+@@ -176,6 +183,8 @@
+     (#90502).
+     """
+     pid = int(pid if pid is not None else os.getpid())
++    if runtime_dir := _runtime_socket_dir():
++        return runtime_dir / f"gateway.loop-tick.{pid}.sock"
+     return _home(home) / "state" / f"gateway.loop-tick.{pid}.sock"
+ 

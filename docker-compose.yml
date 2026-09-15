@@ -18,6 +18,10 @@ services:
       - "${HERMES_DASHBOARD_PORT:-9119}:9119"
     volumes:
       - ${HERMES_DATA_DIR:-${HOME}/.hermes}:/opt/data
+    # Docker Desktop 的 host bind mount 無法可靠地建立 Unix socket；
+    # 僅供 gateway control / watchdog 使用的短生命週期 socket 放在 container-local tmpfs。
+    tmpfs:
+      - /run/hermes:uid=10000,gid=10000,mode=0700
     # Hermes runtime config is read from /opt/data/.env, which maps to
     # ${HERMES_DATA_DIR:-${HOME}/.hermes}/.env. Keep this repo's .env for
     # compose-only settings such as ports, limits, image tag, and data path.
@@ -27,6 +31,7 @@ services:
       API_SERVER_HOST: "0.0.0.0"
       API_SERVER_KEY: "${API_SERVER_KEY:-hermes_default_secret}"
       API_SERVER_CORS_ORIGINS: "*"
+      HERMES_RUNTIME_DIR: "/run/hermes"
       # 官方建議:dashboard 以 s6 服務跟 gateway 跑在同一容器,
       # 不要再開第二個容器共用 /opt/data(會撞鎖、並發寫壞 session/memory)。
       # 詳見 https://hermes-agent.nousresearch.com/docs/user-guide/docker

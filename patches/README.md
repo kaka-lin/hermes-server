@@ -26,6 +26,11 @@
   上下文壓縮後另開的續段 session 還是舊順序，漏掉會讓壓縮過的 run 少算。這個變數
   只能在單次呼叫時設定，不要放進 `/opt/data/.env`，否則 gateway 上所有平台的 session
   都會被貼同一個 tag。
+- `runtime-sockets-on-tmpfs.patch` — `gateway/control_socket.py` 與
+  `gateway/shutdown_watchdog.py`：當設定 `HERMES_RUNTIME_DIR` 時，將 control 與
+  loop-watchdog Unix socket 建在 container-local runtime 目錄，而非掛載的 `/opt/data`。
+  Compose 以 `/run/hermes` tmpfs 提供該目錄，避開 Docker Desktop host bind mount 建立
+  socket 時的 `Operation not permitted`；未設定環境變數時完全維持上游路徑行為。
 
 已移除：`dingtalk-stream-handler.patch`。根因（SDK 在 import 時不存在，
 `_IncomingHandler` 綁到 `object` 後不再重綁）在 v2026.9.14 仍在，但 Dockerfile 現在改成

@@ -31,6 +31,10 @@
   loop-watchdog Unix socket 建在 container-local runtime 目錄，而非掛載的 `/opt/data`。
   Compose 以 `/run/hermes` tmpfs 提供該目錄，避開 Docker Desktop host bind mount 建立
   socket 時的 `Operation not permitted`；未設定環境變數時完全維持上游路徑行為。
+- `registry-optional-check-false-debug.patch` — `tools/registry.py`：可選整合或未設定
+  backend 的 availability probe 正常回傳 `False` 時，只記 DEBUG，避免啟動日誌洗版；
+  probe 拋出例外而得到 `raised` 時仍為 WARNING，且保留 exception context。工具是否
+  暴露的判斷邏輯完全不變。
 
 已移除：`dingtalk-stream-handler.patch`。根因（SDK 在 import 時不存在，
 `_IncomingHandler` 綁到 `object` 後不再重綁）在 v2026.9.14 仍在，但 Dockerfile 現在改成

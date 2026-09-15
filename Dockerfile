@@ -14,6 +14,10 @@ RUN cd /opt/hermes \
 # Drain dynamic s6 gateways before the final shutdown sweep.
 COPY --chmod=0755 docker/cont-finish.d/ /etc/cont-finish.d/
 
+# Debian's /etc/profile resets PATH for every login shell. Restore the Hermes
+# CLI paths so terminal tool commands can invoke `hermes` as documented.
+COPY --chmod=0644 docker/profile.d/ /etc/profile.d/
+
 # Apply all build-time patches from patches/:
 # dingtalk routing, cron session source, runtime sockets, and optional-check logging.
 COPY patches/ /tmp/patches/

@@ -5,6 +5,7 @@
 ```bash
 python3 tests/test_patch_apply.py
 python3 tests/test_runtime_socket_paths.py
+python3 tests/test_login_shell_hermes_path.py
 ruby tests/test_openai_api_routes.rb
 ```
 

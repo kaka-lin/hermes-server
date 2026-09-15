@@ -19,7 +19,8 @@ COPY --chmod=0755 docker/cont-finish.d/ /etc/cont-finish.d/
 COPY --chmod=0644 docker/profile.d/ /etc/profile.d/
 
 # Apply all build-time patches from patches/:
-# dingtalk routing, cron session source, runtime sockets, and optional-check logging.
+# dingtalk routing, cron session source, runtime sockets, optional-check logging,
+# and the interim-only stream-consumer diagnostic.
 COPY patches/ /tmp/patches/
 RUN apt-get update \
     && apt-get install -y --no-install-recommends patch \

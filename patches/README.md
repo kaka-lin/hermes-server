@@ -34,6 +34,11 @@
   backend 的 availability probe 正常回傳 `False` 時，只記 DEBUG，避免啟動日誌洗版；
   probe 拋出例外而得到 `raised` 時仍為 WARNING，且保留 exception context。工具是否
   暴露的判斷邏輯完全不變。
+- `stream-consumer-interim-diagnostic.patch` — `gateway/stream_consumer.py`、
+  `gateway/run_turn_runner.py` 與 `gateway/run_turn.py`：Discord 等平台關閉文字 streaming、
+  但開啟 interim assistant messages 時，consumer 只負責 interim 訊息，不會交付 final
+  response。記錄其是否真的接收文字 delta，避免把正常唯一的 final send 誤記為
+  `possible duplicate send`；真正啟用文字 streaming 時的 duplicate-risk diagnostic 維持不變。
 
 已移除：`dingtalk-stream-handler.patch`。根因（SDK 在 import 時不存在，
 `_IncomingHandler` 綁到 `object` 後不再重綁）在 v2026.9.14 仍在，但 Dockerfile 現在改成

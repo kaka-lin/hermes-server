@@ -156,7 +156,7 @@ docker run --rm --entrypoint /opt/hermes/.venv/bin/python \
 
 ### 環境變數 (Environment Variables)
 
-下表是 Docker Compose 傳入容器的變數，多數是有安全預設的編排選項（在 `docker-compose.yml`；`HERMES_VERSION` 預設在 `hermes-build.sh`），可直接沿用或覆寫。要覆寫：單次用環境變數（如 `HERMES_GATEWAY_PORT=8643 ./hermes-run.sh up`），多 agent 則寫在各自的 `agents/<name>.conf`。**例外：`API_SERVER_KEY` 是驗證金鑰，預設不安全，務必更改。** Hermes 執行期設定（API Key、平台 Token 等）見 [`.env.example`](./.env.example)，複製到 `~/.hermes/.env` 使用。
+下表是 Docker Compose 傳入容器的變數，多數是有安全預設的編排選項（在 `docker-compose.yml`；`HERMES_VERSION` 預設在 `hermes-build.sh`），可直接沿用或覆寫。要覆寫：單次用環境變數（如 `HERMES_GATEWAY_PORT=8643 ./hermes-run.sh up`），多 agent 則寫在各自的 `agents/<name>.conf`。**例外：`API_SERVER_KEY` 與 `HERMES_DASHBOARD_BASIC_AUTH_PASSWORD` 是驗證用的，預設不安全，務必更改。** Hermes 執行期設定（API Key、平台 Token 等）見 [`.env.example`](./.env.example)，複製到 `~/.hermes/.env` 使用。
 
 | 變數 | 預設值 | 說明 |
 | --- | --- | --- |
@@ -167,7 +167,8 @@ docker run --rm --entrypoint /opt/hermes/.venv/bin/python \
 | `HERMES_GATEWAY_PORT` | `8642` | Gateway 對外 Port |
 | `HERMES_DASHBOARD_PORT` | `9119` | Dashboard 對外 Port |
 | `HERMES_DASHBOARD` | `1` | 是否在容器內啟用 Web Dashboard（s6 服務） |
-| `HERMES_DASHBOARD_INSECURE` | `true` | Dashboard 跳過 OAuth gate,允許無認證存取（等同舊版 `--insecure`） |
+| `HERMES_DASHBOARD_BASIC_AUTH_USERNAME` | `hermes` | Dashboard 登入帳號。v2026.9.x 起對外綁定一律要認證，舊的 `HERMES_DASHBOARD_INSECURE` 已失效 |
+| `HERMES_DASHBOARD_BASIC_AUTH_PASSWORD` | `hermes_default_secret` | Dashboard 登入密碼，**預設不安全，務必更改**。這兩個與 `API_SERVER_KEY` 也可寫在 `~/.hermes/.env`（會蓋過 compose 預設），見 `.env.example` 末段 |
 | `API_SERVER_KEY` | `hermes_default_secret` ⚠️ | API Server 驗證金鑰；**務必更改**（預設不安全、公開已知） |
 | `HERMES_MEMORY_LIMIT` | `4G` | 容器記憶體限制（Gateway + Dashboard 同容器） |
 | `HERMES_CPU_LIMIT` | `2.0` | 容器 CPU 限制 |

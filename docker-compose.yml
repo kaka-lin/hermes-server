@@ -28,8 +28,10 @@ services:
       # 不要再開第二個容器共用 /opt/data(會撞鎖、並發寫壞 session/memory)。
       # 詳見 https://hermes-agent.nousresearch.com/docs/user-guide/docker
       HERMES_DASHBOARD: "${HERMES_DASHBOARD:-1}"
-      # 維持原本 dashboard --insecure 行為(無 OAuth);接 OAuth 時設為 false
-      HERMES_DASHBOARD_INSECURE: "${HERMES_DASHBOARD_INSECURE:-true}"
+      # v2026.9.x 起 dashboard 綁 0.0.0.0 一律要過認證，HERMES_DASHBOARD_INSECURE 已失效
+      # （沒設帳密會拒絕啟動、被 s6 無限重啟）。這裡用內建的帳密 provider，預設值不安全，務必改。
+      HERMES_DASHBOARD_BASIC_AUTH_USERNAME: "${HERMES_DASHBOARD_BASIC_AUTH_USERNAME:-hermes}"
+      HERMES_DASHBOARD_BASIC_AUTH_PASSWORD: "${HERMES_DASHBOARD_BASIC_AUTH_PASSWORD:-hermes_default_secret}"
     # Playwright/Chromium 共享記憶體；停用 browser tools 時可設為較小值
     shm_size: "${HERMES_SHM_SIZE:-1g}"
     # 內網 DNS 無法穩定解析外部域名，強制使用公共 DNS

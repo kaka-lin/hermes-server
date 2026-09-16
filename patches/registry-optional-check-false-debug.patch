@@ -1,0 +1,25 @@
+--- a/tools/registry.py
++++ b/tools/registry.py
+@@ -313,7 +313,19 @@ def _check_fn_cached(fn: Callable) -> bool:
+         # No recent success (or grace expired) — honor the failure; logged so silent tool
+         # loss in quiet mode (subagents) is diagnosable.
+-        logger.warning(
+-            "check_fn %s %s; dependent tools will be unavailable this turn", _fn_label(fn), outcome,
+-            exc_info=exc_info)
++        # A normal False is expected for optional or unconfigured integrations.
++        # Keep exceptions at WARNING because they can indicate a broken probe.
++        if outcome == "returned False":
++            logger.debug(
++                "check_fn %s %s; dependent tools will be unavailable this turn",
++                _fn_label(fn),
++                outcome,
++            )
++        else:
++            logger.warning(
++                "check_fn %s %s; dependent tools will be unavailable this turn",
++                _fn_label(fn),
++                outcome,
++                exc_info=exc_info,
++            )
+         _check_fn_cache[cache_key] = (now, False)
+         return False

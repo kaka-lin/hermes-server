@@ -54,18 +54,27 @@ docker run -it --rm \
 
 ### 2. 設定 Hermes 執行變數與金鑰
 
-你可以將本專案提供的備用範本 `.env.example` 和 `config.example.yaml` 複製到 `~/.hermes/` 下來使用：
+你可以用本專案範本補齊尚未建立的 runtime 設定檔；已有檔案時不要覆蓋 Setup Wizard 寫入的金鑰：
 
 ```bash
-cp .env.example ~/.hermes/.env
-cp config.example.yaml ~/.hermes/config.yaml
+cp -n .env.example ~/.hermes/.env
+cp -n config.example.yaml ~/.hermes/config.yaml
 ```
 
-**注意：** `.env.example` 是 Hermes 的**執行期**設定範本（API Key、平台 Token、Allowlist 等），複製到 `~/.hermes/.env` 給容器內 Hermes 讀取。Compose 編排選項（Port、資源上限、`HERMES_VERSION`）是另一回事，有內建預設，見「設定參考 → 環境變數」。
+**注意：** `.env.example` 是 Hermes 的**執行期**設定範本（API Key、平台 Token、Allowlist 等），複製到 `~/.hermes/.env` 給容器內 Hermes 讀取。image 版本設定則在 repo 的 `versions.env`（範本為 [`versions.env.example`](./versions.env.example)）；兩者不可混用。
 
 依你要接的平台（Telegram / Discord / Slack），各自需要設定對應的 `XXX_BOT_TOKEN` 與 `XXX_ALLOWED_USERS`，請參考 [docs/platforms/](docs/platforms/) 下的對應指南。
 
-修改 `~/.hermes/.env` 後，重啟 Gateway 套用：
+本專案的範本預設使用官方 OpenAI API。請在 `~/.hermes/.env` 填入 `OPENAI_API_KEY`，並為
+dashboard 設定非預設帳密：
+
+```ini
+OPENAI_API_KEY=...
+HERMES_DASHBOARD_BASIC_AUTH_USERNAME=your-user
+HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=use-a-long-unique-password
+```
+
+修改 `~/.hermes/.env` 或 `config.yaml` 後，重啟 Gateway 套用：
 
 ```bash
 ./hermes-run.sh restart
@@ -87,7 +96,7 @@ cp config.example.yaml ~/.hermes/config.yaml
 
 ### 建置 (Build)
 
-在官方 base image 上套用 `patches/` 的修補（見 [`patches/`](./patches/)），產出客製化成品 image（`kakalin/hermes-agent:latest`）。base image 版本是 [`hermes-build.sh`](./hermes-build.sh) 的單一旋鈕，預設 pin 在穩定 tag。
+在官方 base image 上套用 `patches/` 的修補（見 [`patches/`](./patches/)），並將指定版本的 `agent-browser` CLI 安裝進 image，產出客製化成品 image `kakalin/hermes-agent:<版本>`。成品 tag 跟 base 版本同名，所以多個版本可以並存、隨時切換。兩個版本都由 repo `versions.env` 控制，預設 pin 在穩定 tag。
 
 ```bash
 # 建置預設 pin 版本（穩定）
@@ -96,11 +105,29 @@ cp config.example.yaml ~/.hermes/config.yaml
 # 改建上游最新（浮動 tag，自動 --pull 刷新；非穩定發布版）
 ./hermes-build.sh latest
 
-# 建指定 tag
-./hermes-build.sh v2026.7.0
+# 建指定 tag → 產出 kakalin/hermes-agent:v2026.9.14
+./hermes-build.sh v2026.9.14
 ```
 
-- **升級穩定版**：改 [`hermes-build.sh`](./hermes-build.sh) 的 `HERMES_VERSION_DEFAULT` 並 commit；`docker-compose.yml` / `Dockerfile` 內同名預設是「直接 `docker compose build`」的備援，請一併同步。
+要調整 base image 或 image 內的 agent-browser 版本時，先建立 repo 專用、已被 gitignore 的版本檔：
+
+```bash
+cp -n versions.env.example versions.env
+# 編輯 versions.env 的 HERMES_VERSION / AGENT_BROWSER_VERSION，然後重建 image
+./hermes-build.sh
+```
+
+也可只對一次建置覆寫，不改檔案：
+
+```bash
+AGENT_BROWSER_VERSION=0.26.0 ./hermes-build.sh
+```
+
+`HERMES_VERSION` 與 `AGENT_BROWSER_VERSION` 都是 build-time 設定；改完必須重建 image，再以 `./hermes-run.sh up` 啟動。它們和 `~/.hermes/.env` 的 API key／平台 token 無關。
+
+- **切換版本啟動**：`HERMES_VERSION=v2026.9.14 ./hermes-run.sh up`；分身要固定跑某版就寫進 `agents/<name>.conf`。沒設就用預設 pin。`up` 不會自動 build，image 不存在會直接報錯，先跑 `./hermes-build.sh <版本>`。
+- **patches 只對應目前 pin 的版本**：上游改動大時，patch 會套不上，build 會在 `apply.py` 停下。要重建舊版請 checkout 對應 commit，或直接把手上的舊 image `docker tag` 成該版本 tag。
+- **升級穩定版**：改 repo `versions.env` 的 `HERMES_VERSION` 後重建，不必 commit；`hermes-build.sh`、`docker-compose.yml`、`Dockerfile` 的同名預設只在沒有 `versions.env` 時使用。
 - **快速測試**：也可不經腳本直接 `docker compose build`（吃上述備援預設）。
 
 ### 啟動與管理 (Run)
@@ -115,7 +142,7 @@ cp config.example.yaml ~/.hermes/config.yaml
 ./hermes-run.sh down               # 停止並移除容器
 ```
 
-> 也可不經腳本、直接用 docker compose 操作主 agent（快速 / 單一）：`docker compose up -d`、`docker compose logs -f`、`docker compose down`；改了 `.env` / `docker-compose.yml` 要重建容器時用 `docker compose down && docker compose up -d`。
+> 也可不經腳本、直接用 docker compose 操作主 agent（快速 / 單一）：`docker compose up -d`、`docker compose logs -f`、`docker compose down`；直接使用 Compose 且要帶自訂 image 版本時，加上 `--env-file versions.env`。改了 `versions.env` / `docker-compose.yml` 要重建 image 與容器。
 
 #### 多 Agent 管理 (Multi-Agent)
 
@@ -137,36 +164,38 @@ cp config.example.yaml ~/.hermes/config.yaml
 
 ### 查版本 (Check Version)
 
-base image 版本 pin 在 `HERMES_VERSION`（預設見 [`hermes-build.sh`](./hermes-build.sh) 的 `HERMES_VERSION_DEFAULT`），所以從設定就看得出版本。若用 `./hermes-build.sh latest`（浮動 tag、非穩定發布版）建置，就看不出實際版本，需用下列指令向運行中的 image 查詢。注意 image 用 **s6-overlay** 啟動：`hermes` 不在 `docker exec` 的預設 PATH，且直接 `docker run <image> hermes …` 會把所有服務拉起再關掉（一堆 `s6-rc` log、有副作用）。`hermes` 本身是 Python 入口腳本（`/opt/hermes/hermes`），所以一律用 venv python 呼叫，與 cron 腳本一致。
+base image 版本 pin 在 `versions.env` 的 `HERMES_VERSION`（未建立該檔時才使用 [`hermes-build.sh`](./hermes-build.sh) 的 `HERMES_VERSION_DEFAULT`），所以從設定就看得出版本。若用 `./hermes-build.sh latest`（浮動 tag、非穩定發布版）建置，就看不出實際版本，需用下列指令向運行中的 image 查詢。注意 image 用 **s6-overlay** 啟動：`hermes` 不在 `docker exec` 的預設 PATH，且直接 `docker run <image> hermes …` 會把所有服務拉起再關掉（一堆 `s6-rc` log、有副作用）。`hermes` 本身是 Python 入口腳本（`/opt/hermes/hermes`），所以一律用 venv python 呼叫，與 cron 腳本一致。
 
 ```bash
 # 服務正在跑時（最常用，輸出乾淨）；多 agent 時把 hermes 換成目標容器名（如 hermes-katherine）
-docker exec hermes bash -c '/opt/hermes/.venv/bin/python /opt/hermes/hermes version'
+docker exec hermes bash -c '/opt/hermes/.venv/bin/python /opt/hermes/hermes --version'
 
 # 服務沒在跑時：用建置好的 image，--entrypoint 繞過 s6 避免拉起服務
 docker run --rm --entrypoint /opt/hermes/.venv/bin/python \
-  kakalin/hermes-agent:latest /opt/hermes/hermes version
+  kakalin/hermes-agent:v2026.9.14 /opt/hermes/hermes --version
 ```
 
-輸出範例：`Hermes Agent v0.16.0 (2026.6.5) · upstream f8adefde`。
+輸出範例：`Hermes Agent v0.21.3 (2026.9.14) · upstream 345cd2b0`（v2026.9.x 起子命令 `version` 改為 `--version` 旗標）。
 
 ## 設定參考 (Configuration)
 
 ### 環境變數 (Environment Variables)
 
-下表是 Docker Compose 傳入容器的變數，多數是有安全預設的編排選項（在 `docker-compose.yml`；`HERMES_VERSION` 預設在 `hermes-build.sh`），可直接沿用或覆寫。要覆寫：單次用環境變數（如 `HERMES_GATEWAY_PORT=8643 ./hermes-run.sh up`），多 agent 則寫在各自的 `agents/<name>.conf`。**例外：`API_SERVER_KEY` 是驗證金鑰，預設不安全，務必更改。** Hermes 執行期設定（API Key、平台 Token 等）見 [`.env.example`](./.env.example)，複製到 `~/.hermes/.env` 使用。
+下表是 Docker Compose 讀取的編排與 build 設定；把 image 版本寫在 repo 根目錄、已被 gitignore 的 `versions.env`（可由 [`versions.env.example`](./versions.env.example) 建立）。`HERMES_VERSION` 與 `AGENT_BROWSER_VERSION` 都可在此調整。`API_SERVER_KEY` 與其他 Hermes 執行期機密請只設定在 `~/.hermes/.env`，範本見 [`.env.example`](./.env.example)。
 
 | 變數 | 預設值 | 說明 |
 | --- | --- | --- |
 | `TZ` | `Asia/Taipei` | Container 時區 |
-| `HERMES_VERSION` | `v2026.6.5` | 上游 base image 版本 tag（build 時）；設 `latest` 可測上游最新 |
+| `HERMES_VERSION` | `v2026.9.14` | 上游 base image 版本 tag；build 時決定 base，`up` 時決定跑 `kakalin/hermes-agent:<版本>` 哪一個 |
+| `AGENT_BROWSER_VERSION` | `0.26.0` | build 時安裝至 image 內的 agent-browser CLI 版本；改動後須重建 image |
 | `HERMES_CONTAINER_NAME` | `hermes` | Container Name |
 | `HERMES_DATA_DIR` | `~/.hermes` | Host 上的資料目錄（多 Profile 時切換此路徑） |
 | `HERMES_GATEWAY_PORT` | `8642` | Gateway 對外 Port |
 | `HERMES_DASHBOARD_PORT` | `9119` | Dashboard 對外 Port |
 | `HERMES_DASHBOARD` | `1` | 是否在容器內啟用 Web Dashboard（s6 服務） |
-| `HERMES_DASHBOARD_INSECURE` | `true` | Dashboard 跳過 OAuth gate,允許無認證存取（等同舊版 `--insecure`） |
-| `API_SERVER_KEY` | `hermes_default_secret` ⚠️ | API Server 驗證金鑰；**務必更改**（預設不安全、公開已知） |
+| `HERMES_DASHBOARD_BASIC_AUTH_USERNAME` | `hermes` | Dashboard 登入帳號；對外綁定必須設定認證 |
+| `HERMES_DASHBOARD_BASIC_AUTH_PASSWORD` | `hermes_default_secret` | Dashboard 登入密碼，**預設不安全，務必更改**。帳密也可寫在 `~/.hermes/.env`（會蓋過 Compose 預設），見 `.env.example` 末段。 |
+| `HERMES_RUNTIME_DIR` | `/run/hermes` | container-local tmpfs，供 gateway control / watchdog Unix socket 使用；不要改到 host bind mount。 |
 | `HERMES_MEMORY_LIMIT` | `4G` | 容器記憶體限制（Gateway + Dashboard 同容器） |
 | `HERMES_CPU_LIMIT` | `2.0` | 容器 CPU 限制 |
 | `HERMES_SHM_SIZE` | `1g` | Browser Tools 共享記憶體 |

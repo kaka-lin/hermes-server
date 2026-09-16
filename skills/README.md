@@ -7,13 +7,12 @@
 本目錄存放的 Skill 通常具有以下特徵：
 
 - **基礎設施操作 (Infrastructure Operations)**：包含專案特定的絕對路徑（如 `/opt/hermes/`）、特定的 CLI 指令或環境變數配置。
-- **補丁與維護 (Patches & Maintenance)**：針對特定 Bug 的修復指令（例如 `patch-gemini-stream-usage`）。
+- **補丁與維護 (Patches & Maintenance)**：針對仍由本專案維護的特定修復流程。
 - **生命週期管理**：與 Hermes Server 架構連動的操作，當系統重構或升級時，這些 Skill 可能需要同步更新或移除。
 
 ### 目前包含的 Skills
 
 - **`dispatch-agent`**: 總指揮專用的背景任務派發腳本。
-- **`patch-gemini-stream-usage`**: 修復 streaming 模式下 usageMetadata 遺失的補丁腳本。
 
 ## 💡 通用 Skills 請至 Agent Library
 

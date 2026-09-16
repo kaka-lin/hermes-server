@@ -72,7 +72,7 @@ HERMES_SHM_SIZE=64m
 
 ### 步驟 1：將 `browser` 加入 toolsets
 
-預設的 `toolsets` 只有 `hermes-cli`，**不包含** `browser`。必須手動加入：
+本專案的 `config.example.yaml` 已包含 `browser`。若你的既有 `config.yaml` 沒有它，才需要手動加入：
 
 - **CLI 指令（推薦）：**
 
@@ -108,7 +108,7 @@ docker run -it --rm \
 修改後重啟：
 
 ```bash
-docker compose restart hermes
+./hermes-run.sh restart
 ```
 
 ## 4. Browser Provider 設定
@@ -117,6 +117,8 @@ docker compose restart hermes
 
 ```yaml
 browser:
+  # "off" 強制使用內建 browser_* tools；CDP 使用者應設定它，避免自動選 Browser Use CLI。
+  backend: "off"
   inactivity_timeout: 120          # 閒置多久後自動清理 session（秒）
   command_timeout: 30              # 單一指令超時（秒）
   record_sessions: false           # 是否錄製 session 為 WebM
@@ -349,7 +351,8 @@ Hermes 執行在 Docker 容器內，要連線到 Mac 上的 Chrome 必須透過 
 
 > [!TIP]
 > **給想手動操作的進階使用者：**
-> 在 Mac 執行 `docker exec -d hermes python3 /opt/data/scripts/cdp_proxy.py 18800` 後，修改 `config.yaml` 中的 `cdp_url: 'http://127.0.0.1:18800'` 並重啟容器即可。
+> 在 Mac 執行 `docker exec -d hermes python3 /opt/data/scripts/cdp_proxy.py 18800` 後，設定
+> `browser.backend: "off"` 與 `browser.cdp_url: 'http://127.0.0.1:18800'`，再重啟容器即可。
 
 #### 替代方法：互動式 CLI 臨時連接
 

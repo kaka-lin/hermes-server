@@ -21,3 +21,7 @@ HERMES_DASHBOARD_CONTAINER_NAME=hermes-<name>-dashboard
 # 對外 port（須與其他 agent 不衝突；避開瀏覽器 CDP 的 9223-9225）
 HERMES_GATEWAY_PORT=8643
 HERMES_DASHBOARD_PORT=9120
+
+# （選用）這個分身要跑的 image 版本；省略 = hermes-build.sh 的預設 pin。
+# 對應 kakalin/hermes-agent:<版本>，要先 ./hermes-build.sh <版本> 建好。
+# HERMES_VERSION=v2026.9.14

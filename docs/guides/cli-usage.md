@@ -48,17 +48,19 @@ docker run -it --rm -v ~/.hermes:/opt/data nousresearch/hermes-agent setup --res
 ### 📊 Dashboard
 
 ```bash
-# Dashboard 是獨立 container（compose 中的 dashboard service）
-# 因為宣告了 depends_on: hermes，未啟動時也會一起把 hermes 帶起來
-docker compose up -d dashboard
+# Dashboard 是 hermes 容器內的 s6 服務；啟動主 stack 即會一起啟動
+./hermes-run.sh up
 
-# 查看 dashboard logs
-docker compose logs -f dashboard
+# 查看 gateway 與 dashboard 的整合 logs
+./hermes-run.sh logs
 ```
+
+Dashboard 預設在 port `9119`，登入帳密由
+`HERMES_DASHBOARD_BASIC_AUTH_USERNAME` / `HERMES_DASHBOARD_BASIC_AUTH_PASSWORD` 設定。
 
 ### 🔐 Pairing 配對管理
 
-詳見 [Allowlist 設定指南](allowlist-config.md)。
+各平台的 pairing 與 allowlist 欄位見 [`.env.example`](../../.env.example) 與對應的平台文件。
 
 ```bash
 # 列出已核准的配對

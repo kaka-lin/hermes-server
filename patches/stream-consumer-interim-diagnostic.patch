@@ -1,0 +1,40 @@
+--- a/gateway/stream_consumer.py
++++ b/gateway/stream_consumer.py
+@@ -118,10 +118,14 @@
+         on_new_message: Optional[callable] = None,
+         on_before_finalize: Optional[Callable[[], Any]] = None,
+         initial_reply_to_id: Optional[str] = None,
+-        run_still_current: Optional[Callable[[], bool]] = None):
++        run_still_current: Optional[Callable[[], bool]] = None,
++        stream_deltas_enabled: bool = True):
+         self.adapter = adapter
+         self.chat_id = chat_id
+         self.cfg = config or StreamConsumerConfig()
++        # Interim-commentary-only consumers must not be mistaken for a stream
++        # that may already have delivered the final response.
++        self.stream_deltas_enabled = bool(stream_deltas_enabled)
+         self.metadata = metadata
+         # Hooks (exceptions swallowed): on_new_message per fresh content bubble (next
+         # tool-progress bubble goes BELOW it); on_before_finalize once (pause typing).
+--- a/gateway/run_turn_runner.py
++++ b/gateway/run_turn_runner.py
+@@ -923,7 +923,8 @@
+                         ),
+                         on_before_finalize=pause_typing_before_finalize,
+                         initial_reply_to_id=ctx.event_message_id, run_still_current=ctx._run_still_current,
+-                    )
++                        stream_deltas_enabled=want_stream_deltas,
++                    )
+                     ctx.stream_consumer_holder[0] = stream_consumer
+             except Exception as err:
+                 logger.debug("Could not set up stream consumer: %s", err)
+--- a/gateway/run_turn.py
++++ b/gateway/run_turn.py
+@@ -3796,7 +3796,7 @@
+                     fail_result=None, fail_exc="Failed to edit streamed message for session %s: %s",
+                 )
+-        elif _sc is not None:
++        elif _sc is not None and getattr(_sc, "stream_deltas_enabled", True):
+             # DUPLICATE-RISK DIAGNOSTIC: a stream consumer existed but suppression did NOT fire; log the
+             # decision inputs ("signal never set" vs "ack-pending race").
+             logger.warning(

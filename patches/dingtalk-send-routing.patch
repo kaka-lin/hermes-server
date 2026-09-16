@@ -1,124 +1,133 @@
---- a/tools/send_message_tool.py	2026-06-10 12:51:35
-+++ b/tools/send_message_tool.py	2026-06-10 13:23:30
-@@ -353,6 +353,8 @@
+--- a/plugins/platforms/dingtalk/adapter.py	2026-09-15 10:23:12
++++ b/plugins/platforms/dingtalk/adapter.py	2026-09-15 10:27:31
+@@ -122,6 +122,40 @@
+     # profile's app id under multiplex, and pairing it with a secondary's secret authenticates as the wrong app.
+     return (extra.get("client_id") or _get_scoped_secret("DINGTALK_CLIENT_ID", ""),
+             extra.get("client_secret") or _get_scoped_secret("DINGTALK_CLIENT_SECRET", ""))
++
++
++def _parse_target_ref(target_ref: str):
++    """Every non-empty target is adapter-native and explicit (``cid...`` groups, staff ids alike).
++
++    Without this parser a ``dingtalk:cidXXXX==`` target is not recognised as explicit, so the send falls
++    back to ``DINGTALK_HOME_CHANNEL`` and silently lands in the wrong group. Registering a parser also
++    switches the plugin to strict resolution, so accepting everything (like wecom/ntfy) keeps non-group
++    ids reaching the adapter as before.
++    """
++    ref = (target_ref or "").strip()
++    return (ref, None) if ref else None
++
++
++async def _robot_api_send(client: "httpx.AsyncClient", access_token: str, robot_code: str, open_conversation_id: str, message: str) -> bool:
++    """Deliver ``message`` to one group via the official robot API (``robot/groupMessages/send``).
++
++    Session webhooks exist only after an inbound message and expire, and the static custom-robot webhook is
++    bound to a single group, so this is the only path that can address an arbitrary ``cid...`` group (cron
++    reports, explicit ``dingtalk:cid...`` targets). Returns True only when DingTalk acknowledges with a
++    ``processQueryKey``; a 200 with a logical error body counts as failure so callers can fall back.
++    """
++    # msgParam is capped at 15000 *bytes*; ensure_ascii=False keeps CJK at 3 bytes instead of the 6 a
++    # \uXXXX escape costs, which otherwise pushes a short report past the limit and 400s the send.
++    msg_param = json.dumps({"title": "Hermes", "text": message}, ensure_ascii=False)
++    logger.info("DingTalk robot API msgParam: %d bytes (limit 15000)", len(msg_param.encode("utf-8")))
++    resp = await client.post(
++        "https://api.dingtalk.com/v1.0/robot/groupMessages/send",
++        headers={"x-acs-dingtalk-access-token": access_token},
++        json={"robotCode": robot_code, "openConversationId": open_conversation_id, "msgKey": "sampleMarkdown", "msgParam": msg_param},
++        timeout=15.0,
++    )
++    resp.raise_for_status()
++    return bool(resp.json().get("processQueryKey"))
  
- def _parse_target_ref(platform_name: str, target_ref: str):
-     """Parse a tool target into chat_id/thread_id and whether it is explicit."""
-+    if platform_name == "dingtalk":
-+        return target_ref.strip(), None, True
-     if platform_name == "telegram":
-         match = _TELEGRAM_TOPIC_TARGET_RE.fullmatch(target_ref)
-         if match:
-@@ -1489,18 +1491,89 @@
  
+ def check_dingtalk_requirements() -> bool:
+@@ -381,11 +415,15 @@
+         metadata = metadata or {}
+         logger.debug("[%s] send() chat_id=%s card_enabled=%s", self.name, chat_id, bool(self._card_template_id and self._card_sdk))
+         session_webhook = metadata.get("session_webhook") or (self._get_valid_webhook(chat_id) or ("",))[0]
++        if not self._http_client:
++            return SendResult(success=False, error="HTTP client not initialized")
+         if not session_webhook:
++            if str(chat_id).startswith("cid"):
++                # ponytail: no webhook fallback here (none exists without a session); a report over the
++                # API's 15000-byte msgParam cap fails outright — chunk on the caller side if that bites.
++                return await self._send_via_robot_api(chat_id, content)
+             logger.warning("[%s] No valid session_webhook for chat_id=%s", self.name, chat_id)
+             return SendResult(success=False, error="No valid session_webhook available. Reply must follow an incoming message.")
+-        if not self._http_client:
+-            return SendResult(success=False, error="HTTP client not initialized")
+         current_message = self._message_contexts.get(chat_id)
+         # ``reply_to`` is only set by base.py:_send_with_retry for the FINAL reply to an inbound message;
+         # tool-progress, commentary and stream first-sends leave it None. It decides (1) finalize-on-create
+@@ -417,6 +455,22 @@
+             logger.error("[%s] Send error: %s", self.name, e)
+             return SendResult(success=False, error=str(e))
  
- async def _send_dingtalk(extra, chat_id, message):
--    """Send via DingTalk robot webhook.
-+    """Send via DingTalk platform.
++    async def _send_via_robot_api(self, chat_id: str, content: str) -> SendResult:
++        """Group delivery when no session webhook is known (cron output, explicit ``dingtalk:cid...`` targets)."""
++        token = await self._get_access_token()
++        if not token:
++            return SendResult(success=False, error="No valid session_webhook and no access token for the robot API")
++        try:
++            delivered = await _robot_api_send(self._http_client, token, self._robot_code, chat_id,
++                                              self._normalize_markdown(content[: self.MAX_MESSAGE_LENGTH]))
++        except Exception as e:
++            logger.error("[%s] Robot API send error: %s", self.name, e)
++            return SendResult(success=False, error=f"Robot API send failed: {e}")
++        if delivered:
++            logger.info("[%s] Delivered via robot API to %s", self.name, chat_id)
++            return SendResult(success=True, message_id=uuid.uuid4().hex[:12])
++        return SendResult(success=False, error="Robot API returned no processQueryKey")
++
+     async def send_typing(self, chat_id: str, metadata=None) -> None:
+         """DingTalk does not support typing indicators."""
  
--    Note: The gateway's DingTalk adapter uses per-session webhook URLs from
--    incoming messages (dingtalk-stream SDK).  For cross-platform send_message
--    delivery we use a static robot webhook URL instead, which must be
--    configured via ``DINGTALK_WEBHOOK_URL`` env var or ``webhook_url`` in the
--    platform's extra config.
-+    Tries the official enterprise robot API (groupMessages/send) when
-+    ``client_id``/``client_secret`` are configured and ``chat_id`` is a group
-+    conversation id (``cid...``); this delivers to the specific group via
-+    ``openConversationId`` instead of a single static webhook target. Falls
-+    back to the custom robot webhook (``DINGTALK_WEBHOOK_URL`` /
-+    ``webhook_url``) on any failure or for non-group targets.
-     """
-     try:
+@@ -628,19 +682,36 @@
          import httpx
      except ImportError:
-         return {"error": "httpx not installed"}
-+
-+    extra = extra or {}
-+
-+    # 1. Official enterprise robot API — routes to a specific group by
-+    #    openConversationId, so multiple cid groups can each be addressed.
-+    client_id = extra.get("client_id") or os.getenv("DINGTALK_CLIENT_ID", "")
-+    client_secret = extra.get("client_secret") or os.getenv("DINGTALK_CLIENT_SECRET", "")
-+    is_group_chat = bool(chat_id) and chat_id.startswith("cid")
-+
-+    if client_id and client_secret and is_group_chat:
+         return send_error("httpx not installed")
++    extra = getattr(pconfig, "extra", {}) or {}
++    # 1. Official robot API — routes to the named group by openConversationId, so several cid groups
++    #    can each be addressed; the static webhook below is bound to one group only.
++    client_id, client_secret = _credentials(extra)
++    if client_id and client_secret and str(chat_id).startswith("cid"):
 +        try:
 +            async with httpx.AsyncClient(timeout=15.0) as client:
-+                token_resp = await client.post(
-+                    "https://api.dingtalk.com/v1.0/oauth2/accessToken",
-+                    json={"appKey": client_id, "appSecret": client_secret},
-+                )
++                token_resp = await client.post("https://api.dingtalk.com/v1.0/oauth2/accessToken",
++                                               json={"appKey": client_id, "appSecret": client_secret})
 +                token_resp.raise_for_status()
-+                access_token = token_resp.json().get("accessToken")
-+
-+                if access_token:
-+                    # DingTalk's msgParam limit is 15000 *bytes*, not chars.
-+                    # ensure_ascii=False keeps CJK at 3 UTF-8 bytes instead of
-+                    # escaping each char to \uXXXX (6 bytes), which would inflate
-+                    # an otherwise-short report past the limit and 400 the send.
-+                    msg_param = json.dumps(
-+                        {"title": "Hermes", "text": message}, ensure_ascii=False
-+                    )
-+                    msg_bytes = len(msg_param.encode("utf-8"))
-+                    logger.info(
-+                        "DingTalk official API msgParam: %d bytes (limit 15000)",
-+                        msg_bytes,
-+                    )
-+                    send_resp = await client.post(
-+                        "https://api.dingtalk.com/v1.0/robot/groupMessages/send",
-+                        headers={
-+                            "x-acs-dingtalk-access-token": access_token,
-+                            "Content-Type": "application/json",
-+                        },
-+                        json={
-+                            "robotCode": client_id,
-+                            "openConversationId": chat_id,
-+                            "msgKey": "sampleMarkdown",
-+                            "msgParam": msg_param,
-+                        },
-+                    )
-+                    send_resp.raise_for_status()
-+                    res_data = send_resp.json()
-+                    # A successful send returns a processQueryKey. Anything else
-+                    # (e.g. a 200 with a logical error body) is treated as a
-+                    # failure so we fall back to the webhook instead of
-+                    # reporting a false success.
-+                    if res_data.get("processQueryKey"):
-+                        logger.info(
-+                            "send_message DingTalk: delivered via official Robot API to %s",
-+                            chat_id,
-+                        )
-+                        return {
-+                            "success": True,
-+                            "platform": "dingtalk",
-+                            "chat_id": chat_id,
-+                            "method": "official_robot_api",
-+                        }
-+                    logger.warning(
-+                        "DingTalk official API returned no processQueryKey (%s), falling back to webhook",
-+                        res_data,
-+                    )
++                token = token_resp.json().get("accessToken")
++                if token and await _robot_api_send(client, token, extra.get("robot_code") or client_id, chat_id, message):
++                    return {"success": True, "platform": "dingtalk", "chat_id": chat_id, "method": "official_robot_api"}
++            logger.warning("DingTalk robot API did not confirm delivery to %s, falling back to webhook", chat_id)
 +        except Exception as api_exc:
-+            logger.warning("DingTalk official API send failed, falling back to webhook: %s", api_exc)
-+
++            logger.warning("DingTalk robot API send failed, falling back to webhook: %s", api_exc)
 +    # 2. Fallback: custom robot webhook (one-way broadcast to its bound group).
+     # Scoped: the webhook URL carries the robot's access_token and IS the delivery target — a raw
+     # environ read would post a secondary profile's cron output to the default profile's robot.
+-    webhook_url = (getattr(pconfig, "extra", {}) or {}).get("webhook_url") or _get_scoped_secret("DINGTALK_WEBHOOK_URL", "")
++    webhook_url = extra.get("webhook_url") or _get_scoped_secret("DINGTALK_WEBHOOK_URL", "")
+     if not webhook_url:
+         return send_error("DingTalk not configured. Set DINGTALK_WEBHOOK_URL env var or webhook_url in dingtalk platform extra config.")
      try:
-         webhook_url = extra.get("webhook_url") or os.getenv("DINGTALK_WEBHOOK_URL", "")
-         if not webhook_url:
-@@ -1508,13 +1581,13 @@
          async with httpx.AsyncClient(timeout=30.0) as client:
-             resp = await client.post(
-                 webhook_url,
--                json={"msgtype": "text", "text": {"content": message}},
-+                json={"msgtype": "markdown", "markdown": {"title": "Hermes", "text": message}},
-             )
+-            resp = await client.post(webhook_url, json={"msgtype": "text", "text": {"content": message}})
++            resp = await client.post(webhook_url, json={"msgtype": "markdown", "markdown": {"title": "Hermes", "text": message}})
              resp.raise_for_status()
              data = resp.json()
-             if data.get("errcode", 0) != 0:
--                return _error(f"DingTalk API error: {data.get('errmsg', 'unknown')}")
+         if data.get("errcode", 0) != 0:
+             return send_error(f"DingTalk API error: {data.get('errmsg', 'unknown')}")
 -        return {"success": True, "platform": "dingtalk", "chat_id": chat_id}
-+                return _error(f"DingTalk webhook API error: {data.get('errmsg', 'unknown')}")
 +        return {"success": True, "platform": "dingtalk", "chat_id": chat_id, "method": "custom_webhook"}
      except Exception as e:
-         return _error(f"DingTalk send failed: {e}")
+         try:  # send_message_tool._error redacts access_token from webhook URLs (lazy import avoids a circular)
+             from tools.send_message_tool import _error as _redact_error
+@@ -729,7 +800,7 @@
+         required_env=["DINGTALK_CLIENT_ID", "DINGTALK_CLIENT_SECRET"], install_hint="pip install 'dingtalk-stream>=0.20' httpx",
+         setup_fn=interactive_setup, apply_yaml_config_fn=_apply_yaml_config, allowed_users_env="DINGTALK_ALLOWED_USERS",
+         allow_all_env="DINGTALK_ALLOW_ALL_USERS", cron_deliver_env_var="DINGTALK_HOME_CHANNEL",
+-        standalone_sender_fn=_standalone_send, emoji="🐳", allow_update_command=True,
++        standalone_sender_fn=_standalone_send, parse_target_ref_fn=_parse_target_ref, emoji="🐳", allow_update_command=True,
+     )
+ 
  

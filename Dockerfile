@@ -1,17 +1,33 @@
-ARG HERMES_VERSION=v2026.6.5
+ARG HERMES_VERSION=v2026.9.14
 FROM nousresearch/hermes-agent:${HERMES_VERSION}
 
-# Copy and install dependencies
-COPY requirements.txt /tmp/requirements.txt
-RUN uv pip install --system --break-system-packages --no-cache-dir -r /tmp/requirements.txt
+# Keep a concrete CLI in the image so Hermes resolves it before its lazy npx
+# fallback. Override this build argument from the repo's Compose .env file.
+ARG AGENT_BROWSER_VERSION=0.26.0
+RUN npm install --prefix /opt/hermes --no-save --no-audit \
+    "agent-browser@${AGENT_BROWSER_VERSION}" \
+    && /opt/hermes/node_modules/.bin/agent-browser --version
 
-# Apply upstream patches at build time (unified diffs under patches/, applied by apply.py).
-#   - dingtalk-send-routing:   explicit dingtalk:cidXXXX== targets deliver to that group
-#                              via the official robot API.
-#   - dingtalk-stream-handler: rebuild _IncomingHandler after the lazy SDK install so the
-#                              bot replies instead of crashing with no raw_process().
-#   - cli-session-source-override: preserve an explicit cron source tag instead of replacing
-#                                  it with the CLI platform label.
+# Install custom-skill dependencies into the Hermes virtual environment.
+COPY requirements.txt /tmp/requirements.txt
+RUN uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir -r /tmp/requirements.txt
+
+# Install DingTalk from the upstream lockfile so its SDK is available at import time.
+RUN cd /opt/hermes \
+    && uv export --frozen --extra dingtalk --no-hashes --no-emit-project --no-annotate -o /tmp/dingtalk-req.txt \
+    && uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir -r /tmp/dingtalk-req.txt \
+    && rm /tmp/dingtalk-req.txt
+
+# Drain dynamic s6 gateways before the final shutdown sweep.
+COPY --chmod=0755 docker/cont-finish.d/ /etc/cont-finish.d/
+
+# Debian's /etc/profile resets PATH for every login shell. Restore the Hermes
+# CLI paths so terminal tool commands can invoke `hermes` as documented.
+COPY --chmod=0644 docker/profile.d/ /etc/profile.d/
+
+# Apply all build-time patches from patches/:
+# dingtalk routing, cron session source, runtime sockets, optional-check logging,
+# and the interim-only stream-consumer diagnostic.
 COPY patches/ /tmp/patches/
 RUN apt-get update \
     && apt-get install -y --no-install-recommends patch \

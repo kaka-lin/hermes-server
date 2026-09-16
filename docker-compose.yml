@@ -3,33 +3,40 @@ services:
     build:
       context: .
       args:
-        # 上游 base image 版本;預設 pin 穩定 tag,可用 HERMES_VERSION=latest 切到最新測上游
-        HERMES_VERSION: ${HERMES_VERSION:-v2026.6.5}
-    image: kakalin/hermes-agent:latest
+        # Pin the upstream base; use latest only for upgrade testing.
+        HERMES_VERSION: ${HERMES_VERSION:-v2026.9.14}
+        # Install a concrete CLI instead of relying on Hermes's lazy npx fallback.
+        AGENT_BROWSER_VERSION: ${AGENT_BROWSER_VERSION:-0.26.0}
+    # HERMES_VERSION selects both the base and custom image tag.
+    image: kakalin/hermes-agent:${HERMES_VERSION:-v2026.9.14}
     container_name: "${HERMES_CONTAINER_NAME:-hermes}"
     restart: unless-stopped
+    # Leave time for gateway session and database shutdown.
+    stop_grace_period: 30s
     command: [ "bash", "-c", "python3 /opt/data/scripts/cdp_proxy.py & exec hermes gateway run" ]
     ports:
       - "${HERMES_GATEWAY_PORT:-8642}:8642"
       - "${HERMES_DASHBOARD_PORT:-9119}:9119"
     volumes:
       - ${HERMES_DATA_DIR:-${HOME}/.hermes}:/opt/data
-    # Hermes runtime config is read from /opt/data/.env, which maps to
-    # ${HERMES_DATA_DIR:-${HOME}/.hermes}/.env. Keep this repo's .env for
-    # compose-only settings such as ports, limits, image tag, and data path.
+    # Docker Desktop bind mounts cannot reliably host Unix sockets.
+    tmpfs:
+      - /run/hermes:uid=10000,gid=10000,mode=0700
+    # Runtime secrets live in /opt/data/.env; this repo's .env is Compose-only.
     environment:
       TZ: ${TZ:-Asia/Taipei}
       API_SERVER_ENABLED: "true"
       API_SERVER_HOST: "0.0.0.0"
-      API_SERVER_KEY: "${API_SERVER_KEY:-hermes_default_secret}"
       API_SERVER_CORS_ORIGINS: "*"
-      # 官方建議:dashboard 以 s6 服務跟 gateway 跑在同一容器,
-      # 不要再開第二個容器共用 /opt/data(會撞鎖、並發寫壞 session/memory)。
-      # 詳見 https://hermes-agent.nousresearch.com/docs/user-guide/docker
+      HERMES_RUNTIME_DIR: "/run/hermes"
+      # Let cont-finish.d drain dynamic s6 gateways for up to 20 seconds.
+      S6_KILL_FINISH_MAXTIME: "22000"
+      # Dashboard and gateway share one container and one data writer.
       HERMES_DASHBOARD: "${HERMES_DASHBOARD:-1}"
-      # 維持原本 dashboard --insecure 行為(無 OAuth);接 OAuth 時設為 false
-      HERMES_DASHBOARD_INSECURE: "${HERMES_DASHBOARD_INSECURE:-true}"
-    # Playwright/Chromium 共享記憶體；停用 browser tools 時可設為較小值
+      # Non-loopback dashboards require credentials; override these defaults in /opt/data/.env.
+      HERMES_DASHBOARD_BASIC_AUTH_USERNAME: "${HERMES_DASHBOARD_BASIC_AUTH_USERNAME:-hermes}"
+      HERMES_DASHBOARD_BASIC_AUTH_PASSWORD: "${HERMES_DASHBOARD_BASIC_AUTH_PASSWORD:-hermes_default_secret}"
+    # Shared memory for Chromium.
     shm_size: "${HERMES_SHM_SIZE:-1g}"
     # 內網 DNS 無法穩定解析外部域名，強制使用公共 DNS
     # 避免關閉 VPN 後 container 整個失去外網（Discord 下線 / Telegram 卡死 / LLM timeout）

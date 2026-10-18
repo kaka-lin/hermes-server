@@ -78,6 +78,7 @@ terminal:
   singularity_image: docker://nikolaik/python-nodejs:python3.11-nodejs20
   modal_image: nikolaik/python-nodejs:python3.11-nodejs20
   daytona_image: nikolaik/python-nodejs:python3.11-nodejs20
+  vercel_runtime: node24
   container_cpu: 1
   container_memory: 5120
   container_disk: 51200
@@ -87,7 +88,6 @@ terminal:
   docker_extra_args: []
   docker_run_as_host_user: false
   persistent_shell: true
-  vercel_runtime: node24
   lifetime_seconds: 300
 web:
   backend: ''
@@ -119,8 +119,8 @@ checkpoints:
   max_file_size_mb: 10
   auto_prune: false
   retention_days: 7
-  delete_orphans: true
   min_interval_hours: 24
+  delete_orphans: true
 file_read_max_chars: 100000
 tool_output:
   max_bytes: 50000
@@ -146,17 +146,6 @@ compression:
   protect_first_n: 3
   abort_on_summary_failure: false
   codex_gpt55_autoraise: true
-kanban:
-  dispatch_in_gateway: true
-  dispatch_interval_seconds: 60
-  failure_limit: 2
-  worker_log_rotate_bytes: 2097152
-  worker_log_backup_count: 1
-  orchestrator_profile: ''
-  default_assignee: ''
-  auto_decompose: true
-  auto_decompose_per_tick: 3
-  dispatch_stale_timeout_seconds: 14400
 prompt_caching:
   cache_ttl: 5m
   long_lived_prefix: true
@@ -184,13 +173,6 @@ auxiliary:
     api_key: ''
     timeout: 120
     download_timeout: 30
-  web_extract:
-    provider: auto
-    model: gpt-5.6-luna
-    base_url: ''
-    api_key: ''
-    timeout: 360
-    extra_body: {}
   compression:
     provider: auto
     model: gpt-5.6-luna
@@ -257,6 +239,13 @@ auxiliary:
     base_url: ''
     api_key: ''
     timeout: 60
+  web_extract:
+    provider: auto
+    model: gpt-5.6-luna
+    base_url: ''
+    api_key: ''
+    timeout: 360
+    extra_body: {}
   session_search:
     provider: auto
     model: gpt-5.6-luna
@@ -287,6 +276,7 @@ display:
   bell_on_complete: false
   show_reasoning: false
   memory_notifications: 'on'
+  background_process_notifications: concise
   streaming: true
   timestamps: false
   final_response_markdown: strip
@@ -307,7 +297,6 @@ display:
     last_lines: 2
   interim_assistant_messages: true
   tool_progress_command: false
-  tool_progress_overrides: {}
   tool_preview_length: 0
   tool_progress_grouping: accumulate
   ephemeral_system_ttl: 0
@@ -324,7 +313,7 @@ display:
       - context_pct
       - cwd
   copy_shortcut: auto
-  background_process_notifications: concise
+  tool_progress_overrides: {}
   tool_progress: 'off'
 dashboard:
   theme: default
@@ -373,7 +362,6 @@ tts:
     voice: en_US-lessac-medium
 stt:
   enabled: true
-  provider: local
   local:
     model: base
     language: ''
@@ -386,6 +374,7 @@ stt:
     language_code: ''
     tag_audio_events: false
     diarize: false
+  provider: local
 voice:
   record_key: ctrl+b
   max_recording_seconds: 120
@@ -405,9 +394,9 @@ memory:
   write_approval: false
   memory_char_limit: 2200
   user_char_limit: 1375
+  nudge_interval: 10
   provider: ''
   flush_min_turns: 6
-  nudge_interval: 10
 delegation:
   model: ''
   provider: ''
@@ -560,6 +549,8 @@ approvals:
   destructive_slash_confirm: false
 command_allowlist:
   - script execution via -e/-c flag
+plugins:
+  enabled: []
 hooks_auto_accept: false
 security:
   allow_private_urls: false
@@ -577,6 +568,17 @@ security:
 cron:
   wrap_response: true
   script_timeout_seconds: 7200
+kanban:
+  dispatch_in_gateway: true
+  dispatch_interval_seconds: 60
+  failure_limit: 2
+  worker_log_rotate_bytes: 2097152
+  worker_log_backup_count: 1
+  orchestrator_profile: ''
+  default_assignee: ''
+  auto_decompose: true
+  auto_decompose_per_tick: 3
+  dispatch_stale_timeout_seconds: 14400
 code_execution:
   mode: project
   max_tool_calls: 50
@@ -683,7 +685,5 @@ smart_model_routing:
   max_simple_words: 28
 image_gen:
   provider: openai
-plugins:
-  enabled: []
 dingtalk:
   gateway_restart_notification: false

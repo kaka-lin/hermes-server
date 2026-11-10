@@ -41,7 +41,7 @@ Hermes 所有的運行時設定皆放置於 `~/.hermes/` 目錄下（Docker Comp
   ```bash
   docker run -it --rm \
     -v ~/.hermes:/opt/data \
-    kakalin/hermes-agent:v2026.9.14 model
+    kakalin/hermes-agent:v2026.9.21 model
   ```
 
   或透過單行指令快速設定：
@@ -49,7 +49,7 @@ Hermes 所有的運行時設定皆放置於 `~/.hermes/` 目錄下（Docker Comp
   ```bash
   docker run --rm \
     -v ~/.hermes:/opt/data \
-    kakalin/hermes-agent:v2026.9.14 config set model gpt-5.6-terra
+    kakalin/hermes-agent:v2026.9.21 config set model gpt-5.6-terra
   ```
 
 ### 方法 B：手動修改設定檔
@@ -79,11 +79,11 @@ model:
 ```bash
 docker run --rm \
   -v ~/.hermes:/opt/data \
-    kakalin/hermes-agent:v2026.9.14 config set fallback_model.provider openai-api
+    kakalin/hermes-agent:v2026.9.21 config set fallback_model.provider openai-api
 
 docker run --rm \
   -v ~/.hermes:/opt/data \
-    kakalin/hermes-agent:v2026.9.14 config set fallback_model.model gpt-5.6-terra
+    kakalin/hermes-agent:v2026.9.21 config set fallback_model.model gpt-5.6-terra
 ```
 
 ### 方法 B：手動修改設定檔 (Fallback)

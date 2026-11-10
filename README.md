@@ -105,8 +105,8 @@ HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=use-a-long-unique-password
 # 改建上游最新（浮動 tag，自動 --pull 刷新；非穩定發布版）
 ./hermes-build.sh latest
 
-# 建指定 tag → 產出 kakalin/hermes-agent:v2026.9.14
-./hermes-build.sh v2026.9.14
+# 建指定 tag → 產出 kakalin/hermes-agent:v2026.9.21
+./hermes-build.sh v2026.9.21
 ```
 
 要調整 base image 或 image 內的 agent-browser 版本時，先建立 repo 專用、已被 gitignore 的版本檔：
@@ -125,7 +125,7 @@ AGENT_BROWSER_VERSION=0.26.0 ./hermes-build.sh
 
 `HERMES_VERSION` 與 `AGENT_BROWSER_VERSION` 都是 build-time 設定；改完必須重建 image，再以 `./hermes-run.sh up` 啟動。它們和 `~/.hermes/.env` 的 API key／平台 token 無關。
 
-- **切換版本啟動**：`HERMES_VERSION=v2026.9.14 ./hermes-run.sh up`；分身要固定跑某版就寫進 `agents/<name>.conf`。沒設就用預設 pin。`up` 不會自動 build，image 不存在會直接報錯，先跑 `./hermes-build.sh <版本>`。
+- **切換版本啟動**：`HERMES_VERSION=v2026.9.21 ./hermes-run.sh up`；分身要固定跑某版就寫進 `agents/<name>.conf`。沒設就用預設 pin。`up` 不會自動 build，image 不存在會直接報錯，先跑 `./hermes-build.sh <版本>`。
 - **patches 只對應目前 pin 的版本**：上游改動大時，patch 會套不上，build 會在 `apply.py` 停下。要重建舊版請 checkout 對應 commit，或直接把手上的舊 image `docker tag` 成該版本 tag。
 - **升級穩定版**：改 repo `versions.env` 的 `HERMES_VERSION` 後重建，不必 commit；`hermes-build.sh`、`docker-compose.yml`、`Dockerfile` 的同名預設只在沒有 `versions.env` 時使用。
 - **快速測試**：也可不經腳本直接 `docker compose build`（吃上述備援預設）。
@@ -172,7 +172,7 @@ docker exec hermes bash -c '/opt/hermes/.venv/bin/python /opt/hermes/hermes --ve
 
 # 服務沒在跑時：用建置好的 image，--entrypoint 繞過 s6 避免拉起服務
 docker run --rm --entrypoint /opt/hermes/.venv/bin/python \
-  kakalin/hermes-agent:v2026.9.14 /opt/hermes/hermes --version
+  kakalin/hermes-agent:v2026.9.21 /opt/hermes/hermes --version
 ```
 
 輸出範例：`Hermes Agent v0.21.3 (2026.9.14) · upstream 345cd2b0`（v2026.9.x 起子命令 `version` 改為 `--version` 旗標）。
@@ -186,7 +186,7 @@ docker run --rm --entrypoint /opt/hermes/.venv/bin/python \
 | 變數 | 預設值 | 說明 |
 | --- | --- | --- |
 | `TZ` | `Asia/Taipei` | Container 時區 |
-| `HERMES_VERSION` | `v2026.9.14` | 上游 base image 版本 tag；build 時決定 base，`up` 時決定跑 `kakalin/hermes-agent:<版本>` 哪一個 |
+| `HERMES_VERSION` | `v2026.9.21` | 上游 base image 版本 tag；build 時決定 base，`up` 時決定跑 `kakalin/hermes-agent:<版本>` 哪一個 |
 | `AGENT_BROWSER_VERSION` | `0.26.0` | build 時安裝至 image 內的 agent-browser CLI 版本；改動後須重建 image |
 | `HERMES_CONTAINER_NAME` | `hermes` | Container Name |
 | `HERMES_DATA_DIR` | `~/.hermes` | Host 上的資料目錄（多 Profile 時切換此路徑） |

@@ -8,7 +8,7 @@
 #
 # base image 版本由 repo `versions.env` 的 HERMES_VERSION 決定；沒有設定時使用穩定預設，
 # 也可在指令列覆寫。
-# 啟動時用同一個變數挑 image：HERMES_VERSION=v2026.9.14 ./hermes-run.sh up
+# 啟動時用同一個變數挑 image：HERMES_VERSION=v2026.9.21 ./hermes-run.sh up
 # （或寫進 agents/<name>.conf）。patches/ 只對應目前 pin 的版本，換版本要重算。
 #
 # Usage:
@@ -31,7 +31,7 @@ COMPOSE+=(--project-directory "$SCRIPT_DIR" -f "$COMPOSE_FILE")
 
 # 上游 base image 的無設定 fallback。docker-compose.yml / Dockerfile 內的同名
 # 預設僅為「直接 docker compose build」的備援，請與此值保持一致。
-HERMES_VERSION_DEFAULT="v2026.9.14"
+HERMES_VERSION_DEFAULT="v2026.9.21"
 
 usage() {
   cat <<EOF

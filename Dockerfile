@@ -1,4 +1,4 @@
-ARG HERMES_VERSION=v2026.9.14
+ARG HERMES_VERSION=v2026.9.21
 FROM nousresearch/hermes-agent:${HERMES_VERSION}
 
 # Keep a concrete CLI in the image so Hermes resolves it before its lazy npx

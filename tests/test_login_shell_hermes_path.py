@@ -4,7 +4,7 @@ import subprocess
 import sys
 
 
-IMAGE = os.environ.get("HERMES_LOGIN_SHELL_TEST_IMAGE", "kakalin/hermes-agent:v2026.9.14")
+IMAGE = os.environ.get("HERMES_LOGIN_SHELL_TEST_IMAGE", "kakalin/hermes-agent:v2026.9.21")
 
 
 def main() -> int:

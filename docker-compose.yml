@@ -18,10 +18,10 @@ services:
     # HERMES_BIND_ADDR (e.g. 127.0.0.1) limits the ports to one host address;
     # unset keeps Docker's default of every interface, IPv4 and IPv6.
     ports:
-      - "${HERMES_BIND_ADDR:+${HERMES_BIND_ADDR}:}${HERMES_GATEWAY_PORT:-8642}:8642"
-      - "${HERMES_BIND_ADDR:+${HERMES_BIND_ADDR}:}${HERMES_DASHBOARD_PORT:-9119}:9119"
+      - "${HERMES_BIND_ADDR:+${HERMES_BIND_ADDR:-}:}${HERMES_GATEWAY_PORT:-8642}:8642"
+      - "${HERMES_BIND_ADDR:+${HERMES_BIND_ADDR:-}:}${HERMES_DASHBOARD_PORT:-9119}:9119"
       # Webhook platform of the default profile (WEBHOOK_ENABLED=true in its .env).
-      - "${HERMES_BIND_ADDR:+${HERMES_BIND_ADDR}:}${HERMES_WEBHOOK_PORT:-8644}:8644"
+      - "${HERMES_BIND_ADDR:+${HERMES_BIND_ADDR:-}:}${HERMES_WEBHOOK_PORT:-8644}:8644"
     volumes:
       - ${HERMES_DATA_DIR:-${HOME}/.hermes}:/opt/data
     # Docker Desktop provides host.docker.internal; this line adds it on Linux.

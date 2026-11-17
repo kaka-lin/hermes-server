@@ -44,12 +44,21 @@ cp -n .env.example ~/.hermes/.env
 cp -n config.example.yaml ~/.hermes/config.yaml
 # 編輯 ~/.hermes/.env
 
-# 3. 啟動並檢查
+# 3.（選用）開 host 上的 Chrome，第一次要在跳出的視窗手動登入要用的網站
+cp -n config/browsers.conf.example config/browsers.conf
+./start-browsers.sh
+
+# 4. 啟動並檢查
 ./hermes-run.sh up
 ./hermes-run.sh cli doctor
+docker exec hermes curl -s http://127.0.0.1:9223/json/version  # 有做第 3 步才跑，回 JSON 代表容器接得到 Chrome
 ```
 
-`./hermes-run.sh up` 不會 build；image 不存在時直接報錯。之後所有 `hermes` 指令都透過 `./hermes-run.sh cli <args>` 在容器裡執行，見 [CLI 指令](docs/cli.md)。
+跑起來後開 <http://localhost:9119>，用 `.env` 裡的帳密登入 dashboard。
+
+- `./hermes-run.sh up` 不會 build；image 不存在時直接報錯。之後所有 `hermes` 指令都透過 `./hermes-run.sh cli <args>` 在容器裡執行，見 [CLI 指令](docs/cli.md)。
+- port 預設綁所有網路介面，只想讓本機連就在 `config/compose.env` 設 `HERMES_BIND_ADDR=127.0.0.1`，見[對外開放的 port 與安全](docs/setup.md#對外開放的-port-與安全)。
+- `config.example.yaml` 預設接 `9223` 的 Chrome。CDP 沒有認證，這套接線只適合本機使用；多帳號、多 profile 見[瀏覽器](docs/browser.md)。不需要登入狀態時可以改用容器內 Chromium，見[其他瀏覽器後端](docs/browser.md#其他瀏覽器後端)。
 
 ## 架構
 

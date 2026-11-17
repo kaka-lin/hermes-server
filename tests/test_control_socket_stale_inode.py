@@ -11,6 +11,7 @@ IMAGE = os.environ.get("HERMES_SOCKET_TEST_IMAGE") or (
 PROBE = r'''
 import asyncio
 import errno
+import os
 import tempfile
 from pathlib import Path
 
@@ -18,13 +19,14 @@ from gateway import control_socket
 from gateway.control_socket import GatewayControlServer, resolve_client_socket_path
 
 original_bind = GatewayControlServer._bind_posix
+refusal = errno.EADDRINUSE
 
 
 async def bind_like_docker_desktop(self, bind_path, pointer_file):
-    # A bind mount refuses the in-home path with EADDRINUSE, as it does for an inode a previous
-    # container left behind; any other path (the private temp-dir fallback) binds normally.
+    # A bind mount refuses the in-home path with ``refusal``; any other path (the private
+    # temp-dir fallback) binds normally.
     if bind_path == self._home / control_socket._SOCKET_FILENAME:
-        raise OSError(errno.EADDRINUSE, "Address already in use")
+        raise OSError(refusal, os.strerror(refusal))
     return await original_bind(self, bind_path, pointer_file)
 
 
@@ -40,6 +42,7 @@ async def start(home):
 
 
 async def main():
+    global refusal
     # Nothing stat-able at the path: a stale inode, so the gateway falls back and clients follow it.
     with tempfile.TemporaryDirectory() as tmp:
         home = Path(tmp).resolve()
@@ -57,6 +60,14 @@ async def main():
         (home / control_socket._SOCKET_FILENAME).touch()
         started, _ = await start(home)
         assert not started, "EADDRINUSE with a visible socket must not fall back"
+
+    # Docker Desktop 4.41 file sharing refuses AF_UNIX nodes with EPERM: fall back as well.
+    refusal = errno.EPERM
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp).resolve()
+        started, bound = await start(home)
+        assert started, "EPERM from the bind mount must fall back to the private temp dir"
+        assert bound.parent != home, bound
 
 
 asyncio.run(main())
@@ -78,7 +89,7 @@ def main() -> int:
         "control socket stale-inode fallback regressed\n"
         f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     )
-    print(f"OK: {IMAGE} falls back past a stale control socket and still refuses a live one")
+    print(f"OK: {IMAGE} falls back past a stale or EPERM-refused control socket and still refuses a live one")
     return 0
 
 

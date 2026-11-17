@@ -30,6 +30,8 @@ patch 對應 `config/compose.env` 的 `HERMES_VERSION`。換版本後套不上�
 
 上游遇到「不支援建 socket」的錯誤時，會改在容器內的暫存目錄 listen，並在 data dir 放指標檔讓 CLI 找到 gateway，但刻意排除 `EADDRINUSE`。這個 patch 讓「`EADDRINUSE` 且容器內 stat 不到那個路徑」也走同一個 fallback；真的有另一個 gateway 在跑時，它的 socket 看得到，照樣報錯。
 
+舊版 Docker Desktop（實測 4.41.2）的 bind mount 不准建 socket，回的是 `EPERM` 而不是上游認得的 `EOPNOTSUPP`，所以 `EPERM` 也走同一個 fallback。另一個 gateway 在跑時只會回 `EADDRINUSE`，不受影響。
+
 回歸測試：[`test_control_socket_stale_inode.py`](../tests/test_control_socket_stale_inode.py)。
 
 DingTalk SDK 不是 patch，而是 Dockerfile 在 build 時從上游 lockfile 的 `dingtalk` extra 安裝；原因與症狀見 [`skills/patch-dingtalk/SKILL.md`](../skills/patch-dingtalk/SKILL.md)。

@@ -1,14 +1,16 @@
---- a/gateway/control_socket.py	2026-11-13 14:04:21
-+++ b/gateway/control_socket.py	2026-11-13 14:04:22
-@@ -246,7 +246,10 @@
+--- a/gateway/control_socket.py	2026-11-17 17:29:42
++++ b/gateway/control_socket.py	2026-11-17 17:29:58
+@@ -246,7 +246,12 @@
          except OSError as exc:
              # A home that fits sun_path can still refuse the socket (Docker Desktop bind mounts,
              # #123761): listen on the same private temp-dir socket + pointer an over-long home uses.
 -            if pointer_file is not None or exc.errno not in _SOCKET_UNSUPPORTED_ERRNOS:
 +            # EADDRINUSE with nothing stat-able at the path is an inode a previous container left on
 +            # the bind mount (#123761); a live sibling's socket would be visible here and still raises.
++            # EPERM is how older Docker Desktop file sharing (4.41) refuses the socket; never a live sibling.
 +            stale_inode = exc.errno == errno.EADDRINUSE and not os.path.lexists(bind_path)
-+            if pointer_file is not None or (exc.errno not in _SOCKET_UNSUPPORTED_ERRNOS and not stale_inode):
++            refused = exc.errno in _SOCKET_UNSUPPORTED_ERRNOS or exc.errno == errno.EPERM or stale_inode
++            if pointer_file is not None or not refused:
                  raise
              logger.warning("Control socket cannot be created in %s (%s); listening in a private temp directory",
                             self._home, exc.strerror or exc)

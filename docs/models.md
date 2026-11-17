@@ -20,9 +20,9 @@ model:
   api_mode: codex_responses
 ```
 
-- **`provider`**：provider ID。常用的有 `openai-api`（OpenAI API key）、`openai-codex`（ChatGPT 帳號登入）、`anthropic`、`openrouter`、`gemini`，以及接自架或其他相容端點的 `custom`。完整清單見官方 [Providers][providers]。
+- **`provider`**：provider ID。常用的有 `openai-api`（OpenAI API key）、`openai-codex`（ChatGPT 帳號登入）、`anthropic`、`openrouter`、`gemini`，以及接自架或其他相容端點的 `custom`。怎麼查其他 provider 見[查可用的 provider 與 model](#查可用的-provider-與-model)。
 - **`base_url`**：API 端點。
-- **`default`**：預設 model ID。不確定名稱時查官方 [model catalog](https://hermes-agent.nousresearch.com/docs/api/model-catalog.json)。
+- **`default`**：預設 model ID。
 - **`api_mode`**：送出請求用的格式。
 
     | 值 | 格式 |
@@ -32,6 +32,17 @@ model:
     | `anthropic_messages` | Anthropic Messages 格式，給 Anthropic 相容的 proxy |
 
     留空時 Hermes 依 `base_url` 判斷；`hermes model` 精靈會明確寫入。
+
+## 查可用的 provider 與 model
+
+- **`./hermes-run.sh cli model`**：互動精靈先列出所有 provider，選好再列出那個 provider 的 model。只想看清單時看完取消，設定不會變。要在終端機執行。
+- **`./hermes-run.sh cli model --refresh`**：清掉精靈的 model 快取，重新向每個 provider 的 `/v1/models` 抓最新清單。新 model 沒出現在選單時用它。
+- **聊天裡的 `/model`**：在 Discord 等平台對 bot 送 `/model`，列出目前的 model，以及已設好憑證的 provider 和各自的部分 model。`/model <model> --provider <provider>` 只換這個對話，加 `--global` 才寫進 `config.yaml`。
+
+補充資料：
+
+- 官方 [Providers][providers]：完整的 provider 清單與各自的設定方式
+- 官方 [model catalog](https://hermes-agent.nousresearch.com/docs/api/model-catalog.json)：model ID 清單
 
 ## 換 model
 

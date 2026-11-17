@@ -164,14 +164,92 @@ logs -f --level WARNING
 logs list                # 列出有哪些 log 檔
 ```
 
+### sessions
+
+對話紀錄存在 data dir 的 `state.db`，用這組指令操作，不要直接改資料庫：
+
+```bash
+sessions list                                    # 最近的 session
+sessions list --source discord --limit 20
+sessions browse                                  # 互動式瀏覽、搜尋並接續 session
+sessions stats                                   # session store 統計
+sessions rename <session-id> <標題>
+sessions export /opt/data/sessions.jsonl         # 匯出全部，預設 JSONL
+sessions export /opt/data/exports/ --format md --session-id <session-id>
+sessions delete <session-id>
+sessions prune --older-than 30 --dry-run         # 先看會刪哪些
+sessions prune --older-than 30
+```
+
+- `export` 的路徑要寫 `/opt/data/...`，檔案才會落在 host 的 data dir。加 `--redact` 遮蔽內容裡的 API key 與 token。
+- `prune` 不加條件時刪 90 天前的 session；釘選（`sessions pin`）與封存的預設不刪。清理磁碟見 [磁碟用量過大](data-dir.md#磁碟用量過大)。
+
+### skills
+
+```bash
+skills list                          # 已安裝的 skill
+skills list --source hub             # 只列從 hub 裝的；另有 builtin、local
+skills browse                        # 分頁瀏覽 registry
+skills search <關鍵字>
+skills inspect <identifier>          # 安裝前預覽
+skills install <identifier>          # 例如 openai/skills/skill-creator，或 SKILL.md 的網址
+skills check                         # 檢查 hub skill 有沒有新版
+skills update                        # 更新過期的 hub skill，自己改過的會跳過
+skills audit                         # 重新掃描已安裝的 hub skill
+skills uninstall <名稱>
+skills config                        # 互動式啟用、停用個別 skill
+```
+
+skill 裝在 profile 的 `skills/`，對其他 profile 加 `-p <名稱>`。`skills list --enabled-only -p <名稱>` 列出那個 profile 實際會載入的 skill。
+
+### memory
+
+內建記憶（`memories/` 的 `MEMORY.md`、`USER.md`）一直開著。這組指令管外部 memory provider，同時只能開一個：
+
+```bash
+memory status                        # 目前的 provider 設定
+memory setup                         # 互動式選 provider 並設定
+memory off                           # 關掉外部 provider，只用內建記憶
+memory reset --target memory         # 清空 MEMORY.md；user 清 USER.md，不加是兩個都清
+```
+
+image 內建 `retaindb`、`byterover`；`honcho`、`mem0` 等其他 provider 先用 `plugins install <名稱>` 安裝。
+
+### insights
+
+依對話紀錄統計 token 用量、費用、工具使用與活動趨勢：
+
+```bash
+insights                             # 過去 30 天
+insights --days 7
+insights --source discord            # 只看某個平台
+```
+
+### webhook
+
+讓外部服務（例如 GitHub）用 HTTP POST 觸發 agent。要先在 `.env` 加 `WEBHOOK_ENABLED=true` 並執行 `gateway restart`，沒開時指令只會印設定說明。
+
+```bash
+webhook subscribe github-pr \
+  --events pull_request \
+  --prompt "整理這個 PR：{pull_request.title}" \
+  --deliver discord
+webhook list
+webhook test github-pr               # 送一個測試 POST
+webhook remove github-pr
+```
+
+- 每個 subscription 的網址是 `/webhooks/<名稱>`，`--prompt` 用 `{欄位.子欄位}` 取 payload 的值。
+- 沒給 `--secret` 時自動產生 HMAC secret，填到外部服務的 webhook 設定。
+- `--deliver-only` 不經過 LLM，直接把套好 payload 的 prompt 當訊息送出，`--deliver` 要指定實際的平台。
+- webhook 預設聽容器的 `8644`，這個 repo 的 `docker-compose.yml` 沒有對外開這個 port，外部服務要打進來得自己加。
+
 ### 其他
 
 | 指令 | 用途 |
 | --- | --- |
 | `setup`、`setup model` | 互動式設定精靈，或只跑某一段 |
 | `config show`、`config get <key>`、`config set <key> <value>` | 檢視與修改 `config.yaml` |
-| `sessions list`、`sessions export`、`sessions prune` | 管理對話紀錄 |
-| `skills list`、`skills search <關鍵字>`、`skills install <identifier>` | 管理 skill |
 | `backup` | 把整個 home 備份成 zip，預設寫到 `/opt/data/hermes-backup-<timestamp>.zip` |
 
 [cli-ref]: https://hermes-agent.nousresearch.com/docs/reference/cli-commands

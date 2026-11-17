@@ -1,6 +1,6 @@
 # 瀏覽器：接 Host 上已登入的 Chrome
 
-讓容器裡的 Hermes 操作 host 上已登入的 Chrome。支援 macOS；Windows 未實測；Linux 尚未支援，見 [Linux](#linux)。容器內 Chromium、雲端瀏覽器（Browserbase、Browser Use、Firecrawl）與 Camofox plugin 的設定見[官方 Browser 文件][official]，本文不重複。
+讓容器裡的 Hermes 操作 host 上已登入的 Chrome。支援 macOS；Windows 未實測；Linux 尚未支援，見 [Linux](#linux)。不需要登入狀態時，也可以改用容器內 Chromium、雲端瀏覽器或 Camofox，見[其他瀏覽器後端](#其他瀏覽器後端)。
 
 ## 架構
 
@@ -128,6 +128,157 @@ agent-browser --cdp 9224 snapshot -i
 ```
 
 這樣同一份 skill 在不同 profile 下會操作不同帳號的 Chrome，`browser_exec` 與 `agent-browser` 也接到同一個 Chrome。
+
+## 其他瀏覽器後端
+
+`browser` toolset 預設已啟用，`./hermes-run.sh cli tools list --platform discord` 可以確認。`browser_exec` 依下列順序決定用哪個瀏覽器：
+
+1. CDP endpoint（`/browser connect`、`BROWSER_CDP_URL`、`browser.cdp_url`）
+2. 私有網址交給容器內 Chromium，見[私有網址走容器內 Chromium](#私有網址走容器內-chromium)
+3. `browser.cloud_provider` 指定的雲端瀏覽器，建立 session 失敗時改用容器內 Chromium
+4. 容器內 Chromium
+
+`config.example.yaml` 預設 `browser.cdp_url` 是 `http://127.0.0.1:9223`，會蓋過容器內 Chromium 與雲端瀏覽器的設定，所以先清空：
+
+```bash
+./hermes-run.sh cli config set browser.cdp_url ""
+```
+
+金鑰寫在 `<data dir>/.env`，其他 profile 寫在 `<data dir>/profiles/<名稱>/.env`；`config set` 對其他 profile 加 `-p <profile>`。改完重啟 gateway：
+
+```bash
+./hermes-run.sh cli gateway restart
+```
+
+更多選項見[官方 Browser 文件][official]。
+
+### 容器內 Chromium
+
+image 已內建 Chromium，不需要金鑰。開的是沒有登入狀態的 headless 瀏覽器，每個 session 都是新的。
+
+1. 設定：
+
+    ```bash
+    ./hermes-run.sh cli config set browser.cdp_url ""
+    ./hermes-run.sh cli config set browser.cloud_provider local
+    ```
+
+2. 確認：`./hermes-run.sh cli doctor` 的輸出裡 `Chromium` 那一列打勾，並列出 Chromium 路徑。
+
+`docker-compose.yml` 已把 `shm_size` 設為 `1g`（`HERMES_SHM_SIZE`），Chromium 需要較大的 `/dev/shm`，不要調低。
+
+### Browserbase
+
+1. 到 [browserbase.com](https://browserbase.com) 取得 API key 與 project ID，寫進 `<data dir>/.env`：
+
+    ```ini
+    BROWSERBASE_API_KEY=...
+    BROWSERBASE_PROJECT_ID=...
+    ```
+
+    選用：
+
+    - `BROWSERBASE_PROXIES`：residential proxy，預設 `true`
+    - `BROWSERBASE_ADVANCED_STEALTH`：進階隱匿模式，預設 `false`
+    - `BROWSERBASE_KEEP_ALIVE`：保持 session，預設 `true`
+    - `BROWSERBASE_SESSION_TIMEOUT`：session timeout，單位毫秒
+
+    方案不支援 keep-alive 或 proxy 時（API 回 402），Hermes 會拿掉該功能重試。
+
+2. 設定：
+
+    ```bash
+    ./hermes-run.sh cli config set browser.cloud_provider browserbase
+    ```
+
+3. 確認：`./hermes-run.sh cli status --full` 的 `API Keys` 段落裡 `Browserbase` 打勾。
+
+### Browser Use
+
+1. 到 [browser-use.com](https://browser-use.com) 取得 API key，寫進 `<data dir>/.env`：
+
+    ```ini
+    BROWSER_USE_API_KEY=...
+    ```
+
+2. 設定：
+
+    ```bash
+    ./hermes-run.sh cli config set browser.cloud_provider browser-use
+    ```
+
+3. 確認：`./hermes-run.sh cli status --full` 的 `API Keys` 段落裡 `Browser Use` 打勾。
+
+### Firecrawl
+
+1. 到 [firecrawl.dev](https://firecrawl.dev) 取得 API key，寫進 `<data dir>/.env`。這把 key 也給 Firecrawl 網頁搜尋用：
+
+    ```ini
+    FIRECRAWL_API_KEY=...
+    ```
+
+    選用：
+
+    - `FIRECRAWL_API_URL`：自架 Firecrawl 的位址，預設 `https://api.firecrawl.dev`
+    - `FIRECRAWL_BROWSER_TTL`：session 存活秒數，預設 `300`
+
+2. 設定。Firecrawl 只在明確指定時使用：
+
+    ```bash
+    ./hermes-run.sh cli config set browser.cloud_provider firecrawl
+    ```
+
+3. 確認：`./hermes-run.sh cli status --full` 的 `API Keys` 段落裡 `Firecrawl` 打勾。
+
+### Camofox
+
+[Camofox](https://github.com/jo-inc/camofox-browser) 是反偵測的 Firefox（Camoufox）包成的 REST server。它已移出 Hermes 核心，改成官方 plugin，提供 `camofox` toolset（`browser_navigate`、`browser_click` 等），不經過 `browser_exec`。Hermes 不會幫你安裝或啟動 server。
+
+1. 在 host 上啟動 Camofox server：
+
+    ```bash
+    docker run -d -p 9377:9377 -e CAMOFOX_PORT=9377 ghcr.io/jo-inc/camofox-browser:latest
+    ```
+
+2. 安裝 plugin，裝在 data dir 的 `plugins/camofox`：
+
+    ```bash
+    ./hermes-run.sh cli plugins install camofox
+    ```
+
+3. 把 server 位址寫進 `.env`。從容器連 host 要用 `host.docker.internal`；API key 可留空：
+
+    ```bash
+    ./hermes-run.sh cli camofox setup --url http://host.docker.internal:9377
+    ```
+
+    結果是 `<data dir>/.env` 多一行 `CAMOFOX_URL=http://host.docker.internal:9377`。
+
+4. 啟用 toolset。`--platform` 不寫時只套用到 CLI：
+
+    ```bash
+    ./hermes-run.sh cli tools enable camofox --platform discord
+    ```
+
+    要讓 agent 只走 Camofox，再關掉 `browser`：`./hermes-run.sh cli tools disable browser --platform discord`。
+
+5. 要保留 cookie 與登入狀態，在 `config.yaml` 開 persistent session（server 端也要把這個 profile 對應到持久的 Camofox profile）：
+
+    ```yaml
+    browser:
+      camofox:
+        managed_persistence: true
+    ```
+
+6. 確認：`./hermes-run.sh cli camofox status` 列出 server 位址、身分模式，以及 server 連不連得到。
+
+### 私有網址走容器內 Chromium
+
+用雲端瀏覽器時，`localhost`、區網等私有網址雲端連不到，Hermes 會改用容器內 Chromium 開，公開網址照樣走雲端。這由 `browser.auto_local_for_private_urls` 控制，預設 `true`；設成 `false` 則直接拒絕私有網址：
+
+```bash
+./hermes-run.sh cli config set browser.auto_local_for_private_urls false
+```
 
 ## 常見錯誤
 

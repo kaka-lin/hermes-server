@@ -1,6 +1,6 @@
 # DingTalk
 
-Hermes 用 DingTalk 的 Stream 模式收訊息，由容器主動連出去，不需要公開 URL。這裡是在本專案接上 DingTalk 的步驟，以及這個 image 和上游的差異；完整選項見[官方 DingTalk 文件][official]。
+Hermes 用 DingTalk 的 Stream 模式收訊息，由容器主動連出去，不需要公開 URL。這裡是在本專案接上 DingTalk 的步驟，以及這個 image 和上游的差異；需要更多細節時可參考[官方 DingTalk 文件][official]。
 
 ## 這個 image 和上游的差異
 
@@ -72,7 +72,7 @@ gateway:
 
 `extra` 底下還可以放：
 
-- `card_template_id`：AI 卡片範本 ID（後台 AI 卡片設定裡找），設了之後回覆改用卡片並串流更新。
+- `card_template_id`：AI 卡片範本 ID（後台 AI 卡片設定裡找），設了之後回覆改用卡片，見[AI 卡片](#ai-卡片)。
 - `robot_code`：機器人代碼，預設等於 Client ID，不同時才要設。
 
 群組裡不同使用者預設各自一個 session；要讓整個群組共用上下文，把頂層的 `group_sessions_per_user` 設為 `false`。
@@ -90,6 +90,77 @@ gateway:
 python3 tests/test_dingtalk_send_routing.py
 ```
 
+## 進階設定
+
+### AI 卡片
+
+回覆預設是 session webhook 送出的 Markdown。在 profile 的 `config.yaml` 設卡片範本 ID 後改用 AI 卡片：
+
+```yaml
+gateway:
+  platforms:
+    dingtalk:
+      extra:
+        card_template_id: <範本 ID>
+```
+
+- 範本要有名為 `content` 的變數，回覆內容寫進這個欄位。
+- 卡片送不出去時自動退回 Markdown 回覆，log 會有 `AI Card send failed, falling back to webhook`。私訊的訊息沒帶 `sender_staff_id` 時也會退回，log 是 `AI Card skipped: missing sender_staff_id for DM`。
+- 只設範本，卡片在回覆完成時一次送出；要邊產生邊更新，再照[顯示設定](#顯示設定)開串流。
+
+### 表情回應
+
+機器人收到訊息就在該訊息加上「思考中」表情，最終回覆送出後換成「完成」（英文語系是 `🤔Thinking`、`🥳Done`）。這個功能不需要 AI 卡片，也沒有開關。
+
+表情在白名單與 `@` 規則檢查之前就加上：看到「思考中」卻沒有回覆，代表訊息已送到 gateway，是被擋在授權或群組規則，見[機器人不回覆](#機器人不回覆)。
+
+### 顯示設定
+
+DingTalk 的一般回覆送出後不能修改，Hermes 對它的預設是：
+
+- `tool_progress: off`：不顯示工具進度
+- `interim_assistant_messages: false`：不送中間的說明訊息
+- `streaming: false`：不串流
+- `long_running_notifications: false`：長時間執行不另外通知
+- `show_reasoning: false`：不顯示推理過程
+
+每個鍵依序取第一個有值的來源：
+
+1. `display.platforms.dingtalk.<鍵>`
+2. `display.<鍵>`
+3. 上面的 DingTalk 預設
+
+[`config.example.yaml`](../../config.example.yaml) 在 `display` 底下設了 `interim_assistant_messages: true`，所以 DingTalk 也會收到中間訊息。只想讓 DingTalk 保持安靜時：
+
+```yaml
+display:
+  platforms:
+    dingtalk:
+      tool_progress: 'off'
+      interim_assistant_messages: false
+```
+
+串流更新只在設了 `card_template_id` 時有效，而且三個條件都要成立：
+
+- AI 卡片已設定
+- 頂層 `streaming.enabled: true`，`config.example.yaml` 預設是 `false`
+- `display.platforms.dingtalk.streaming: true`，因為 DingTalk 預設是 `false`
+
+```yaml
+streaming:
+  enabled: true
+display:
+  platforms:
+    dingtalk:
+      streaming: true
+```
+
+`display.streaming` 只管 CLI，不影響 gateway。
+
+### 主動通知
+
+cron 結果預設送到 `.env` 的 `DINGTALK_HOME_CHANNEL`（群組 ID，`cid...`）。主動通知由容器呼叫 DingTalk API 送出，不需要公開 URL；手上沒有該群組的 session webhook 時改走機器人 API，見[送到指定群組](#送到指定群組)。
+
 ## 套用與確認
 
 1. 重啟 gateway 讓新的 `.env` 生效。這會中斷該 home 所有 profile 正在跑的 cron 與對話：
@@ -99,13 +170,58 @@ python3 tests/test_dingtalk_send_routing.py
     ```
 
 2. 私訊機器人，或在群組 `@` 它，確認有回覆。
-3. 沒回覆時看 log（`./hermes-run.sh logs`，或 data dir 的 `logs/gateway.log`）：
-
-    - `DINGTALK_CLIENT_ID and DINGTALK_CLIENT_SECRET required`：該 profile 的 `.env` 沒有憑證。
-    - `dingtalk-stream not installed`：image 不是用這個 repo 的 `Dockerfile` 建的，執行 `./hermes-build.sh`。
-    - `No valid session_webhook available`：回覆時找不到原訊息的 webhook（例如中間 gateway 重啟過），重新傳一則訊息即可。
-    - 機器人沒反應也沒錯誤：確認後台已開機器人能力並選 Stream 模式、應用已發布、你的 user ID 在白名單裡。
+3. 沒回覆時看 log（`./hermes-run.sh logs`，或 data dir 的 `logs/gateway.log`），對照[常見錯誤](#常見錯誤)。
 
 其他 home 的容器在指令加 `-a <home>`，見 [CLI 指令](../cli.md)。
+
+## 常見錯誤
+
+### 機器人不回覆
+
+依序檢查：
+
+1. 後台已加機器人能力、訊息接收模式選 Stream、應用已發布。
+
+2. log 有 `Connected via Stream Mode`。沒有的話看下面幾節。
+
+3. 訊息上出現「思考中」表情卻沒有回覆：訊息已到 gateway，被擋在授權或群組規則。
+    - 確認你的 user ID 在該 profile 的 `DINGTALK_ALLOWED_USERS`。
+    - 群組裡要 `@` 機器人，或把群組 ID 加進 `DINGTALK_FREE_RESPONSE_CHATS`。
+
+    這類訊息只在 debug 等級的 log 留紀錄，平常看不到錯誤。
+
+### `dingtalk-stream not installed`
+
+這個 image 在 build 時就裝好 SDK，正常不會出現。gateway 在建立 adapter 前會先檢查套件，所以缺套件時 log 通常先出現下面兩行之一：
+
+- `Platform 'DingTalk' dependencies missing — attempting install...`
+- `Platform 'DingTalk' requirements not met`
+
+出現任何一種，代表容器跑的 image 不是用這個 repo 的 `Dockerfile` 建的。就算執行期自動補裝成功，Stream handler 也已綁錯基底類別，bot 一樣不回（見[這個 image 和上游的差異](#這個-image-和上游的差異)）。執行 `./hermes-build.sh` 重建，再用 `./hermes-run.sh up` 換上新 image。
+
+### `DINGTALK_CLIENT_ID and DINGTALK_CLIENT_SECRET required`
+
+這是 adapter 連線前的檢查，但 gateway 更早就會檢查憑證，所以缺憑證時通常看到的是：
+
+- 完全沒填憑證：gateway 不啟用 DingTalk，log 沒有錯誤，機器人一直離線。
+- 平台已在設定中啟用但缺憑證：log 是 `Platform 'DingTalk' config validation failed`。
+
+把 `DINGTALK_CLIENT_ID`、`DINGTALK_CLIENT_SECRET` 填進**該 profile** 的 `.env`（路徑見[每個 profile 一個應用](#每個-profile-一個應用)），再重啟 gateway。
+
+### Stream 斷線或一直重連
+
+- Stream SDK 自己會重試。錯誤跑出 SDK 時由 Hermes 重連，log 有 `Stream client error:` 與 `Reconnecting in`，間隔依序是 2、5、10、30、60 秒，之後固定 60 秒。
+- 同一種錯誤連續出現 5 次後熔斷，log 有 `circuit breaker tripped`，之後每 300 秒安靜重試一次，直到錯誤類型改變。
+- log 有 `dingtalk-stream cannot open its websocket with the installed websockets package`：套件版本不相容，gateway 不會再重連。用這個 repo 的 `Dockerfile` 重建 image，不要在容器裡 `pip install`。
+- 其他情況：確認憑證有效、主機能對外建立 WebSocket 連線。
+
+### `No session_webhook available`
+
+實際的 log 是 `No valid session_webhook for chat_id=`。一般回覆要用原訊息附帶的 session webhook，它只存在 gateway 的記憶體：
+
+- gateway 重啟後就消失。
+- 到期前 5 分鐘就不再使用。
+
+這個 image 對 `cid` 開頭的目標會改用機器人 API 送出，不會出這個錯；只有目標不是 `cid...` 時才會。重新傳一則訊息給機器人即可。
 
 [official]: https://hermes-agent.nousresearch.com/docs/user-guide/messaging/dingtalk

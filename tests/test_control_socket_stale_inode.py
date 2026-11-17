@@ -4,7 +4,7 @@ import subprocess
 import sys
 
 
-# Same image name the build produces; the env vars match compose.env.
+# Same image name the build produces; the env vars match config/compose.env.
 IMAGE = os.environ.get("HERMES_SOCKET_TEST_IMAGE") or (
     f"{os.environ.get('HERMES_IMAGE', 'kakalin/hermes-agent')}:{os.environ.get('HERMES_VERSION', 'v0.23.1')}"
 )

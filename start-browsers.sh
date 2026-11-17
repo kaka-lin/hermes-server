@@ -10,7 +10,7 @@
 #   bash start-browsers.sh [start|stop|status|restart]
 #   (無參數 = start)
 #
-# Profile 設定: browsers.conf（與本腳本同層）
+# Profile 設定: config/browsers.conf
 #   可用 BROWSERS_CONFIG=/path/to/other.conf 環境變數覆寫
 #
 # 參考: docs/browser.md
@@ -18,11 +18,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG="${BROWSERS_CONFIG:-$SCRIPT_DIR/browsers.conf}"
+CONFIG="${BROWSERS_CONFIG:-$SCRIPT_DIR/config/browsers.conf}"
 
-# 平台設定 platforms/<平台>.env（可不建）；沒填的值在下面自動偵測。
-# shellcheck source=platforms/detect.sh
-. "$SCRIPT_DIR/platforms/detect.sh"
+# 平台設定 config/platforms/<平台>.env（可不建）；沒填的值在下面自動偵測。
+# shellcheck source=lib/detect-platform.sh
+. "$SCRIPT_DIR/lib/detect-platform.sh"
 if [[ -f "$PLATFORM_ENV" ]]; then
   # 已 export 的值優先於檔案，和 Compose 的規則一致。
   exported_chrome="${CHROME:-}" exported_data_dir="${BROWSER_DATA_DIR:-}"
@@ -119,7 +119,7 @@ wait_for_listen() {
 cmd_start() {
   if [[ -z "${CHROME:-}" || ! -x "$CHROME" ]]; then
     echo "Error: Chrome 找不到（${CHROME:-$HERMES_PLATFORM 上自動偵測找不到}）" >&2
-    echo "Hint: 在 $PLATFORM_ENV 設定 CHROME=<Chrome 執行檔路徑>（範本見 platforms/$HERMES_PLATFORM.env.example）" >&2
+    echo "Hint: 在 $PLATFORM_ENV 設定 CHROME=<Chrome 執行檔路徑>（範本見 config/platforms/$HERMES_PLATFORM.env.example）" >&2
     exit 1
   fi
 

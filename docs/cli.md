@@ -6,7 +6,7 @@
 
 | 指令 | 作用 |
 | --- | --- |
-| `up [-a <名稱> \| --all]` | 同步 `scripts/`、`browsers.conf` 到 data dir，再啟動容器 |
+| `up [-a <名稱> \| --all]` | 同步 `scripts/`、`config/browsers.conf` 到 data dir，再啟動容器 |
 | `down [-a <名稱> \| --all]` | 停止並移除容器，data dir 不受影響 |
 | `restart [-a <名稱> \| --all]` | 重啟容器裡的程式，不重建容器 |
 | `logs [-a <名稱>]` | 跟著看容器 log（最後 100 行起） |
@@ -15,11 +15,11 @@
 | `new <名稱> [--force]` | 建立新 home，見[建一個新 home](agents-and-profiles.md#建一個新-home) |
 | `ls` | 列出所有 home |
 
-不加選項時操作主 home。`-a <名稱>`（或 `--agent <名稱>`）操作 `agents/<名稱>.conf` 的 home，要緊接在子指令後面，例如 `./hermes-run.sh cli -a work doctor`；`--all` 是主 home 加所有其他 home，只能用在 `up`、`down`、`restart`。
+不加選項時操作主 home。`-a <名稱>`（或 `--agent <名稱>`）操作 `config/agents/<名稱>.conf` 的 home，要緊接在子指令後面，例如 `./hermes-run.sh cli -a work doctor`；`--all` 是主 home 加所有其他 home，只能用在 `up`、`down`、`restart`。
 
 ### up
 
-以 `--no-build --pull never` 啟動，image 不存在時直接報錯，先用 `./hermes-build.sh` 建好。啟動前把 repo 的 `scripts/` 同步進 data dir（不刪除 data dir 裡多出來的檔案），並把 `browsers.conf` 放到 `scripts/host/browsers.conf`。
+以 `--no-build --pull never` 啟動，image 不存在時直接報錯，先用 `./hermes-build.sh` 建好。啟動前把 repo 的 `scripts/` 同步進 data dir（不刪除 data dir 裡多出來的檔案），並把 `config/browsers.conf` 放到 `scripts/host/browsers.conf`。
 
 Compose 變數（port、data dir、image 版本）只有 `up` 會套用，`restart` 不會。
 
@@ -30,7 +30,7 @@ Compose 變數（port、data dir、image 版本）只有 `up` 會套用，`resta
 - `HOME`：home 名稱，主 home 顯示 `hermes`
 - `CONTAINER`：容器名稱
 - `STATUS`：`docker ps` 的狀態，沒有容器時是 `(none)`
-- `GATEWAY`、`DASH`：host 上的 port
+- `GATEWAY`、`DASH`、`WEBHOOK`：host 上的 port
 - `PROFILES`：data dir 的 `profiles/` 底下有哪些 profile
 
 ### cli
@@ -50,6 +50,18 @@ Compose 變數（port、data dir、image 版本）只有 `up` 會套用，`resta
 # ~/.zshrc
 alias hcli='/path/to/hermes-server/hermes-run.sh cli'
 ```
+
+### 查版本
+
+```bash
+# 容器在跑時；其他 home 加 -a <名稱>
+./hermes-run.sh cli --version
+
+# 容器沒跑時：直接用 image，--entrypoint 跳過啟動流程
+docker run --rm --entrypoint hermes kakalin/hermes-agent:v0.23.1 --version
+```
+
+第一行是 Hermes 版本與上游 commit，例如 `Hermes Agent v0.23.1 (2026.9.24) · upstream 3b421578`。image 名稱與 tag 依 `config/compose.env` 的 `HERMES_IMAGE`、`HERMES_VERSION`。
 
 ## 常用 hermes 指令
 
@@ -72,6 +84,18 @@ doctor            # 檢查設定、套件、服務、API 連線、工具
 status            # 各元件狀態摘要
 status --full     # 列出所有段落（金鑰會遮蔽）
 --version         # Hermes 版本
+```
+
+### logs
+
+`hermes logs` 讀 data dir 裡 Hermes 自己的 log 檔，和看容器輸出的 `./hermes-run.sh logs` 不同：
+
+```bash
+logs                     # agent.log 最後 50 行
+logs gateway -n 200
+logs errors --since 1h
+logs -f --level WARNING
+logs list                # 列出有哪些 log 檔
 ```
 
 ### gateway
@@ -113,36 +137,6 @@ auth status <provider>
 
 模型與 provider 的設定見[模型設定](models.md)。
 
-### cron
-
-```bash
-cron list
-cron create "0 9 * * *" "整理今天的待辦" --name daily-todo
-cron create "every 2h" --skill <skill 名稱> --name <名稱>
-cron edit <job-id> --schedule "0 10 * * *"
-cron pause <job-id>
-cron resume <job-id>
-cron run <job-id>              # 在下一個 scheduler tick 執行一次
-cron runs [<job-id>]           # 執行紀錄
-cron remove <job-id>
-cron status                    # scheduler 有沒有在跑
-cron doctor                    # 檢查排程的常見問題
-```
-
-排程可以寫 `30m`、`every 2h` 或 cron 語法。`--deliver` 指定結果送去哪裡（例如 `discord`、`platform:chat_id`），其餘選項看 `cron create --help`。
-
-### send
-
-不經過 LLM，直接用已設定好的平台憑證送訊息，適合腳本與通知：
-
-```bash
-send --list                                 # 列出可用的目標
-send --to discord "deploy finished"         # 送到該平台的 home channel
-send --to discord:#ops --file /opt/data/report.md
-```
-
-`--to` 的格式是 `platform`、`platform:chat_id` 或 `platform:#channel-name`。
-
 ### pairing
 
 ```bash
@@ -150,18 +144,6 @@ pairing list                         # 等待中與已核准的使用者
 pairing approve <platform> <code>    # code 是 bot 私訊給使用者的配對碼
 pairing revoke <platform> <user-id>
 pairing clear-pending
-```
-
-### logs
-
-`hermes logs` 讀 data dir 裡 Hermes 自己的 log 檔，和看容器輸出的 `./hermes-run.sh logs` 不同：
-
-```bash
-logs                     # agent.log 最後 50 行
-logs gateway -n 200
-logs errors --since 1h
-logs -f --level WARNING
-logs list                # 列出有哪些 log 檔
 ```
 
 ### sessions
@@ -184,6 +166,19 @@ sessions prune --older-than 30
 - `export` 的路徑要寫 `/opt/data/...`，檔案才會落在 host 的 data dir。加 `--redact` 遮蔽內容裡的 API key 與 token。
 - `prune` 不加條件時刪 90 天前的 session；釘選（`sessions pin`）與封存的預設不刪。清理磁碟見 [磁碟用量過大](data-dir.md#磁碟用量過大)。
 
+### memory
+
+內建記憶（`memories/` 的 `MEMORY.md`、`USER.md`）一直開著。這組指令管外部 memory provider，同時只能開一個：
+
+```bash
+memory status                        # 目前的 provider 設定
+memory setup                         # 互動式選 provider 並設定
+memory off                           # 關掉外部 provider，只用內建記憶
+memory reset --target memory         # 清空 MEMORY.md；user 清 USER.md，不加是兩個都清
+```
+
+image 內建 `retaindb`、`byterover`；`honcho`、`mem0` 等其他 provider 先用 `plugins install <名稱>` 安裝。
+
 ### skills
 
 ```bash
@@ -202,28 +197,45 @@ skills config                        # 互動式啟用、停用個別 skill
 
 skill 裝在 profile 的 `skills/`，對其他 profile 加 `-p <名稱>`。`skills list --enabled-only -p <名稱>` 列出那個 profile 實際會載入的 skill。
 
-### memory
-
-內建記憶（`memories/` 的 `MEMORY.md`、`USER.md`）一直開著。這組指令管外部 memory provider，同時只能開一個：
+### cron
 
 ```bash
-memory status                        # 目前的 provider 設定
-memory setup                         # 互動式選 provider 並設定
-memory off                           # 關掉外部 provider，只用內建記憶
-memory reset --target memory         # 清空 MEMORY.md；user 清 USER.md，不加是兩個都清
+cron list
+cron create "0 9 * * *" "整理今天的待辦" --name daily-todo
+cron create "every 2h" --skill <skill 名稱> --name <名稱>
+cron edit <job-id> --schedule "0 10 * * *"
+cron pause <job-id>
+cron resume <job-id>
+cron run <job-id>              # 在下一個 scheduler tick 執行一次
+cron runs [<job-id>]           # 執行紀錄
+cron remove <job-id>
+cron status                    # scheduler 有沒有在跑
+cron doctor                    # 檢查排程的常見問題
 ```
 
-image 內建 `retaindb`、`byterover`；`honcho`、`mem0` 等其他 provider 先用 `plugins install <名稱>` 安裝。
+排程可以寫：
 
-### insights
+- `30m`
+- `every 2h`
+- cron 語法
 
-依對話紀錄統計 token 用量、費用、工具使用與活動趨勢：
+`--deliver` 指定結果送去哪裡（例如 `discord`、`platform:chat_id`），其餘選項看 `cron create --help`。
+
+### send
+
+不經過 LLM，直接用已設定好的平台憑證送訊息，適合腳本與通知：
 
 ```bash
-insights                             # 過去 30 天
-insights --days 7
-insights --source discord            # 只看某個平台
+send --list                                 # 列出可用的目標
+send --to discord "deploy finished"         # 送到該平台的 home channel
+send --to discord:#ops --file /opt/data/report.md
 ```
+
+`--to` 的格式有：
+
+- `platform`
+- `platform:chat_id`
+- `platform:#channel-name`
 
 ### webhook
 
@@ -242,7 +254,18 @@ webhook remove github-pr
 - 每個 subscription 的網址是 `/webhooks/<名稱>`，`--prompt` 用 `{欄位.子欄位}` 取 payload 的值。
 - 沒給 `--secret` 時自動產生 HMAC secret，填到外部服務的 webhook 設定。
 - `--deliver-only` 不經過 LLM，直接把套好 payload 的 prompt 當訊息送出，`--deliver` 要指定實際的平台。
-- webhook 預設聽容器的 `8644`，這個 repo 的 `docker-compose.yml` 沒有對外開這個 port，外部服務要打進來得自己加。
+- webhook 聽容器的 `8644`，對外開在 host 的 `HERMES_WEBHOOK_PORT`（主 home 預設 `8644`，其他 home 由 `new` 自動挑）。外部服務還要能連到這台 host，例如透過 tunnel 或公開網址。
+- 一個 home 只對外開一個 webhook port，給 default profile 用。其他 profile 預設也聽 `8644`，會和 default profile 衝突，要在該 profile 的 `.env` 設 `WEBHOOK_PORT` 換 port，而且那個 port 不會對外開。
+
+### insights
+
+依對話紀錄統計 token 用量、費用、工具使用與活動趨勢：
+
+```bash
+insights                             # 過去 30 天
+insights --days 7
+insights --source discord            # 只看某個平台
+```
 
 ### 其他
 

@@ -47,14 +47,14 @@ version: 1.0.0
 
     向使用者回報「✅ 已成功派發任務給 [分身名稱]」，並附上你下的指令內容。告知使用者分身正在背景執行，不會干擾我們現在的對話。
 
-## 停止/終止分身任務 (Stopping Dispatch Agents)
+## 停止或終止分身任務
 
 1. **尋找 PID**：使用 `ps aux | grep <profile名稱>` 或 `ps aux | grep hermes`。
 2. **尋找關聯程序**：分身可能連帶啟動 `agent-browser`，執行 `ps aux | grep agent-browser` 確認。`cdp_proxy.py` 是容器啟動時就在跑、所有 profile 共用的 CDP 轉發，不屬於分身。
 3. **終止程序**：使用 `pkill -f "<profile名稱>"`，必要時再終止該分身的 `agent-browser` 程序。**不要**終止 `cdp_proxy.py`，否則所有 profile 的瀏覽器都會斷線，要重啟容器才會恢復。
 4. **回報**：確認程序已消失，向使用者回報。
 
-## ⚠️ 跨平台與背景執行陷阱 (Pitfalls)
+## 跨平台與背景執行陷阱
 
 1. **目標一律用精確 ID**
 

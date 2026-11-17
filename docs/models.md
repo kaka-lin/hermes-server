@@ -10,7 +10,7 @@
 
 ## `model` 區塊
 
-[`config.example.yaml`](../config.example.yaml) 的設定：
+[`config.example.yaml`][config-example] 的設定：
 
 ```yaml
 model:
@@ -20,18 +20,29 @@ model:
   api_mode: codex_responses
 ```
 
-- **`provider`**：provider ID。常用的有 `openai-api`（OpenAI API key）、`openai-codex`（ChatGPT 帳號登入）、`anthropic`、`openrouter`、`gemini`，以及接自架或其他相容端點的 `custom`。怎麼查其他 provider 見[查可用的 provider 與 model](#查可用的-provider-與-model)。
+- **`provider`**：provider ID。常用的有：
+  - `openai-api`：OpenAI API key
+  - `openai-codex`：ChatGPT 帳號登入
+  - `anthropic`
+  - `openrouter`
+  - `gemini`
+  - `custom`：接自架或其他相容端點
+
+  怎麼查其他 provider 見[查可用的 provider 與 model](#查可用的-provider-與-model)。
+
 - **`base_url`**：API 端點。
+
 - **`default`**：預設 model ID。
+
 - **`api_mode`**：送出請求用的格式。
 
-    | 值 | 格式 |
-    | --- | --- |
-    | `chat_completions` | OpenAI 相容的 `/v1/chat/completions`，多數端點的預設 |
-    | `codex_responses` | Responses API，OpenAI Codex 與 xAI 用這個 |
-    | `anthropic_messages` | Anthropic Messages 格式，給 Anthropic 相容的 proxy |
+  | 值 | 格式 |
+  | --- | --- |
+  | `chat_completions` | OpenAI 相容的 `/v1/chat/completions`，多數端點的預設 |
+  | `codex_responses` | Responses API，OpenAI Codex 與 xAI 用這個 |
+  | `anthropic_messages` | Anthropic Messages 格式，給 Anthropic 相容的 proxy |
 
-    留空時 Hermes 依 `base_url` 判斷；`hermes model` 精靈會明確寫入。
+  留空時 Hermes 依 `base_url` 判斷；`hermes model` 精靈會明確寫入。
 
 ## 查可用的 provider 與 model
 
@@ -67,9 +78,17 @@ model:
 
 ## Fallback
 
-主 model 遇到 rate limit（429）、5xx、連線錯誤、401/403/404 或連續空回應時，Hermes 依序改用 `fallback_providers` 裡的 model。依官方 [Fallback Providers][fallback]：fallback 以一個 turn 為單位，下一則訊息又會先用主 model；換 provider 會讓 prompt cache 失效。
+主 model 遇到下列情況時，Hermes 依序改用 `fallback_providers` 裡的 model：
 
-[`config.example.yaml`](../config.example.yaml) 用 ChatGPT 帳號登入的 Codex 當 fallback：
+- rate limit（429）
+- 5xx
+- 連線錯誤
+- 401/403/404
+- 連續空回應
+
+依官方 [Fallback Providers][fallback]：fallback 以一個 turn 為單位，下一則訊息又會先用主 model；換 provider 會讓 prompt cache 失效。
+
+[`config.example.yaml`][config-example] 用 ChatGPT 帳號登入的 Codex 當 fallback：
 
 ```yaml
 fallback_providers:
@@ -99,7 +118,13 @@ fallback_providers:
 - `approval`：判斷指令要不要核准
 - `web_extract`、`session_search`、`kanban_decomposer`、`curator` 等
 
-預設 `provider: auto`：先用主 provider，失敗再走該任務的 `fallback_chain`，再走 `fallback_providers`。`config.example.yaml` 把它們都設成較便宜的 `gpt-5.6-luna`：
+預設 `provider: auto`，依序嘗試（前一個失敗才走下一個）：
+
+1. 主 provider
+2. 該任務的 `fallback_chain`
+3. `fallback_providers`
+
+`config.example.yaml` 把它們都設成較便宜的 `gpt-5.6-luna`：
 
 ```yaml
 auxiliary:
@@ -122,3 +147,4 @@ auxiliary:
 
 [providers]: https://hermes-agent.nousresearch.com/docs/integrations/providers
 [fallback]: https://hermes-agent.nousresearch.com/docs/user-guide/features/fallback-providers
+[config-example]: ../config.example.yaml

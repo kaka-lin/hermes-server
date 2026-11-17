@@ -15,16 +15,20 @@ services:
     # cron_drain_timeout (30s) plus teardown; a shorter grace kills them mid-run.
     stop_grace_period: 45s
     command: [ "bash", "-c", "python3 /opt/data/scripts/cdp_proxy.py & exec hermes gateway run" ]
+    # HERMES_BIND_ADDR (e.g. 127.0.0.1) limits the ports to one host address;
+    # unset keeps Docker's default of every interface, IPv4 and IPv6.
     ports:
-      - "${HERMES_GATEWAY_PORT:-8642}:8642"
-      - "${HERMES_DASHBOARD_PORT:-9119}:9119"
+      - "${HERMES_BIND_ADDR:+${HERMES_BIND_ADDR}:}${HERMES_GATEWAY_PORT:-8642}:8642"
+      - "${HERMES_BIND_ADDR:+${HERMES_BIND_ADDR}:}${HERMES_DASHBOARD_PORT:-9119}:9119"
+      # Webhook platform of the default profile (WEBHOOK_ENABLED=true in its .env).
+      - "${HERMES_BIND_ADDR:+${HERMES_BIND_ADDR}:}${HERMES_WEBHOOK_PORT:-8644}:8644"
     volumes:
       - ${HERMES_DATA_DIR:-${HOME}/.hermes}:/opt/data
     # Docker Desktop provides host.docker.internal; this line adds it on Linux.
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    # Runtime secrets live in /opt/data/.env; Compose variables come from compose.env
-    # and platforms/<platform>.env.
+    # Runtime secrets live in /opt/data/.env; Compose variables come from
+    # config/compose.env and config/platforms/<platform>.env.
     environment:
       TZ: ${TZ:-Asia/Taipei}
       # Where cdp_proxy.py forwards CDP connections (the host running Chrome).

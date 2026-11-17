@@ -16,7 +16,8 @@
 ├── auth.json                # OAuth 登入（例如 openai-codex），所有 profile 共用
 ├── state.db                 # session 與訊息（SQLite）
 ├── sessions/
-├── memories/                # agent 第一次寫記憶時才建立
+├── memories/                # MEMORY.md、USER.md，agent 第一次寫記憶時才建立
+├── platforms/pairing/       # 私訊配對的 code 與已核准的使用者
 ├── skills/                  # 內建 skills（每次啟動同步）與自己裝、agent 自建的
 ├── cron/                    # jobs.json 與每次執行的 output/
 ├── logs/                    # gateway.log、agent.log、errors.log…
@@ -41,12 +42,14 @@
 ### 狀態
 
 - **`state.db`**：對話紀錄存在這個 SQLite 資料庫，不要直接改，用 `./hermes-run.sh cli sessions …` 操作（`list`、`browse`、`prune`…）。
+- **`memories/`**：`MEMORY.md` 是 agent 自己的筆記，`USER.md` 是它記下的使用者資訊，開新 session 時載入 system prompt。字數上限是 `config.yaml` 的 `memory.memory_char_limit`（預設 `2200`）與 `memory.user_char_limit`（預設 `1375`）。可以手動編輯，但條目之間要用單獨一行的 `§` 分隔；格式不符時 agent 下次寫入會拒絕，並先存一份快照。
+- **`platforms/pairing/`**：沒設 allowlist 時，陌生人私訊 bot 拿到的 pairing code 與已核准的使用者，存成權限 `600` 的 JSON。用 `./hermes-run.sh cli pairing …` 管理，不要手改。舊的 `pairing/` 裡有資料時，Hermes 沿用舊目錄。
 - **`skills/`**：同名 skill 以這裡的版本為準。
 - **`cron/`**：排程由 gateway 執行，用 `./hermes-run.sh cli cron …` 管理。
 
 ### `scripts/`
 
-`./hermes-run.sh up` 與 `new` 每次都用 `rsync` 把 repo 的 `scripts/` 同步進來（排除 `__pycache__`，不刪除多出來的檔案），並把 repo 根目錄的 `browsers.conf` 放到 `scripts/host/browsers.conf`：
+`./hermes-run.sh up` 與 `new` 每次都用 `rsync` 把 repo 的 `scripts/` 同步進來（排除 `__pycache__`，不刪除多出來的檔案），並把 repo 的 `config/browsers.conf` 放到 `scripts/host/browsers.conf`：
 
 - `cdp_proxy.py`：容器啟動時跑起來，把 CDP 連線轉到 host 上的 Chrome，見[瀏覽器](browser.md)。
 - `cron_run_stats.py`：依 cron 執行的 log 和 `state.db`，產生單次執行的遙測通知。
@@ -82,6 +85,25 @@ tar czf hermes-backup-$(date +%Y%m%d).tar.gz -C ~ .hermes
 
 其他 home 加 `-a <名稱>`，打包 `.hermes-<名稱>`。備份檔含 `.env` 與 `auth.json`，要當機密保管。
 
+## 安全建議
+
+Data dir 裡含機密的檔案：
+
+- `.env`、`profiles/<名稱>/.env`：API key、bot token
+- `auth.json`：OAuth 登入憑證
+- `state.db`：所有對話內容
+- 備份檔：含上面全部
+
+`stage2-hook.sh` 每次容器啟動都會把根目錄的 `.env` 設成 `600`。其他的自己收緊：
+
+```bash
+chmod 700 ~/.hermes
+chmod 600 ~/.hermes/auth.json
+chmod 600 ~/.hermes/profiles/<名稱>/.env   # 每個 profile 各一次
+```
+
+Linux 上先照 [容器內 Permission denied](#容器內-permission-denied) 設好 `HERMES_UID`，否則 `700` 會讓容器讀不到。不要把 data dir 或備份檔放進 git 或共用雲端資料夾。
+
 ## 容器內 Permission denied
 
 容器裡的程式以 `hermes` 使用者執行，image 裡它的 UID/GID 是 `10000`。Linux 上 data dir 通常屬於自己（例如 `1000`），兩者不同時容器寫不進 data dir。macOS 的 Docker Desktop 會隱藏擁有者的差異，一般不用處理。
@@ -100,7 +122,7 @@ docker exec hermes id hermes # 容器裡 hermes 的 UID/GID
 1. 複製平台設定範本：
 
     ```bash
-    cp platforms/linux.env.example platforms/linux.env
+    cp config/platforms/linux.env.example config/platforms/linux.env
     ```
 
 2. 把 `HERMES_UID`、`HERMES_GID` 改成 `id -u`、`id -g` 的結果。
@@ -164,22 +186,3 @@ Hermes 在改檔案前會把工作目錄快照到 `checkpoints/`，給 `/rollbac
 - **`cron/output/`**：每個 job 只留最近 50 次的輸出，由 `config.yaml` 的 `cron.output_retention` 調整。
 
 `hermes backup` 產生的 `hermes-backup-*.zip` 不會自動清，搬走或刪掉。
-
-## 安全建議
-
-Data dir 裡含機密的檔案：
-
-- `.env`、`profiles/<名稱>/.env`：API key、bot token
-- `auth.json`：OAuth 登入憑證
-- `state.db`：所有對話內容
-- 備份檔：含上面全部
-
-`stage2-hook.sh` 每次容器啟動都會把根目錄的 `.env` 設成 `600`。其他的自己收緊：
-
-```bash
-chmod 700 ~/.hermes
-chmod 600 ~/.hermes/auth.json
-chmod 600 ~/.hermes/profiles/<名稱>/.env   # 每個 profile 各一次
-```
-
-Linux 上先照 [容器內 Permission denied](#容器內-permission-denied) 設好 `HERMES_UID`，否則 `700` 會讓容器讀不到。不要把 data dir 或備份檔放進 git 或共用雲端資料夾。

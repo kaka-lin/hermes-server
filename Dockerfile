@@ -11,7 +11,7 @@ COPY --chmod=0755 docker/bin/agent-browser /usr/local/bin/agent-browser
 RUN agent-browser --version
 
 # Install custom-skill dependencies into the Hermes virtual environment.
-COPY requirements.txt /tmp/requirements.txt
+COPY docker/requirements.txt /tmp/requirements.txt
 # Since v0.23 uv is no longer on PATH; it lives in the arch-specific tool store.
 RUN UV="$(ls /opt/hermes/tools/uv-*/uv)" \
     && "$UV" pip install --python /opt/hermes/.venv/bin/python --no-cache-dir -r /tmp/requirements.txt

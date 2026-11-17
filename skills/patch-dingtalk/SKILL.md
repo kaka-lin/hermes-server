@@ -3,6 +3,7 @@ name: patch-dingtalk
 description: "Fixes Hermes Agent's DingTalk integration at image build time: (1) routing patch — explicit dingtalk:cidXXXX== targets resolve and reach that specific group via the official robot API instead of failing with 'Could not resolve' or landing in the webhook's single group; (2) Stream handler — the SDK is baked into the image so _IncomingHandler binds to ChatbotHandler at import and the bot replies instead of crashing with no raw_process()"
 version: 1.1.0
 ---
+
 # Patch DingTalk
 
 Hermes Agent's DingTalk integration has two independent defects upstream. Both
@@ -14,6 +15,31 @@ DingTalk lives in `plugins/platforms/dingtalk/adapter.py`.
 
 The two fixes address **different symptoms** — read the one that matches what
 you are seeing.
+
+## Trigger
+
+When rebuilding or restarting the container, or when DingTalk misbehaves:
+
+- `send_message` to an explicit `dingtalk:cidXXXX==` group fails with
+  `Could not resolve`, or lands in the webhook's single group → apply patch 1.
+- The bot never replies and logs `no attribute 'raw_process'` → the image was
+  built without the `dingtalk` extra; rebuild with the current Dockerfile.
+
+## Steps
+
+Patches are applied at image build time by `patches/apply.py` (see
+[Dockerfile](../../Dockerfile)). To (re)apply:
+
+1. Rebuild the image: `./hermes-build.sh` (see
+    [docs/setup.md](../../docs/setup.md) for version tags).
+2. Recreate the container: `./hermes-run.sh up`.
+
+The applier is idempotent — patches already present are skipped — and aborts
+the build with a clear error if an upstream change makes a patch no longer
+apply (a signal to refresh the diff via `patches/README.md`).
+
+Each Hermes profile needs its own DingTalk app credentials: one bot token
+cannot be polled by two profiles at once.
 
 ## 1. Routing — messages to a named group fail or reach the wrong group
 
@@ -34,12 +60,16 @@ Two halves of one fix:
   goes to the standalone sender `_standalone_send`
   (`StandaloneSendPolicy(text_direct=True)`), which upstream only knows as the
   static custom-robot webhook (`DINGTALK_WEBHOOK_URL`), bound to **one** group.
-  The patch makes `_standalone_send` try the official robot API
-  (`robot/groupMessages/send`, `openConversationId=<cid>`, `msgKey`
-  `sampleMarkdown`) first when `chat_id` is a `cid...` group id and
-  `DINGTALK_CLIENT_ID` / `DINGTALK_CLIENT_SECRET` are set. The robot code
-  defaults to the client id; set `robot_code` in the platform `extra` to
-  override it. If the API does not confirm delivery, it falls back to the
+  The patch makes `_standalone_send` try the official robot API first when
+  `chat_id` is a `cid...` group id and `DINGTALK_CLIENT_ID` /
+  `DINGTALK_CLIENT_SECRET` are set. The API call uses:
+
+  - Endpoint `robot/groupMessages/send`
+  - `openConversationId=<cid>`
+  - `msgKey` `sampleMarkdown`
+
+  The robot code defaults to the client id; set `robot_code` in the platform
+  `extra` to override it. If the API does not confirm delivery, it falls back to the
   webhook, now sent as markdown. The live adapter's `send()` also uses the
   robot API when it has no session webhook for a `cid...` chat.
 
@@ -74,27 +104,3 @@ from upstream's lockfile keeps `cryptography` at the
 pinned 50.x, which a plain `pip install alibabacloud-dingtalk` would drag back
 below 49. Do not use `uv sync` for this: it honours `.python-version` (3.14)
 and recreates the venv from scratch, dropping every messaging extra.
-
-## Trigger
-
-When rebuilding or restarting the container, or when DingTalk misbehaves:
-
-- `send_message` to an explicit `dingtalk:cidXXXX==` group fails with
-  `Could not resolve`, or lands in the webhook's single group → apply patch 1.
-- The bot never replies and logs `no attribute 'raw_process'` → the image was
-  built without the `dingtalk` extra; rebuild with the current Dockerfile.
-
-## Steps
-
-Patches are applied at image build time by `patches/apply.py` (see
-[Dockerfile](../../Dockerfile)). To (re)apply:
-
-1. Rebuild the image: `./hermes-build.sh` (see [docs/setup.md](../../docs/setup.md) for version tags).
-2. Recreate the container: `./hermes-run.sh up`.
-
-The applier is idempotent — patches already present are skipped — and aborts
-the build with a clear error if an upstream change makes a patch no longer
-apply (a signal to refresh the diff via `patches/README.md`).
-
-Each Hermes profile needs its own DingTalk app credentials: one bot token
-cannot be polled by two profiles at once.

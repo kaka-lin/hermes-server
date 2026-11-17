@@ -1,13 +1,19 @@
 # 瀏覽器：接 Host 上已登入的 Chrome
 
-讓容器裡的 Hermes 操作 host 上已登入的 Chrome。支援 macOS；Windows 未實測；Linux 尚未支援，見 [Linux](#linux)。不需要登入狀態時，也可以改用容器內 Chromium、雲端瀏覽器或 Camofox，見[其他瀏覽器後端](#其他瀏覽器後端)。
+讓容器裡的 Hermes 操作 host 上已登入的 Chrome。平台支援狀況：
+
+- macOS：支援
+- Windows：未實測
+- Linux：尚未支援，見 [Linux](#linux)
+
+不需要登入狀態時，也可以改用容器內 Chromium、雲端瀏覽器或 Camofox，見[其他瀏覽器後端](#其他瀏覽器後端)。
 
 ## 架構
 
 ```mermaid
 flowchart LR
   subgraph Host["Host"]
-    SB["start-browsers.sh<br/>讀 browsers.conf"] -->|開| C1["Chrome :9223<br/>~/.hermes/browser/main"]
+    SB["start-browsers.sh<br/>讀 config/browsers.conf"] -->|開| C1["Chrome :9223<br/>~/.hermes/browser/main"]
     SB -->|開| C2["Chrome :9224<br/>~/.hermes/browser/helper"]
   end
   subgraph Container["Hermes 容器"]
@@ -16,7 +22,7 @@ flowchart LR
   PX -->|host.docker.internal:9224| C2
 ```
 
-- **`browsers.conf`**：repo 根目錄的 `port:profile_name` 清單，host 和容器共用。`./hermes-run.sh up` 每次把它複製到 data dir 的 `scripts/host/browsers.conf`。
+- **`config/browsers.conf`**：repo 裡的 `port:profile_name` 清單，host 和容器共用。`./hermes-run.sh up` 每次把它複製到 data dir 的 `scripts/host/browsers.conf`。
 - **[`start-browsers.sh`](../start-browsers.sh)**：在 host 上依清單每行開一個 Chrome，綁 `--remote-debugging-port=<port>`，登入狀態存在 `<BROWSER_DATA_DIR>/<profile_name>/user-data`。Chrome 路徑和資料目錄見[平台設定](setup.md#平台設定)。
 - **[`cdp_proxy.py`](../scripts/cdp_proxy.py)**：隨 gateway 啟動，為清單裡每個 port 在容器的 `127.0.0.1:<port>` 開 listener，原封不動轉到 `CDP_HOST:<port>`（預設 `host.docker.internal`，Docker Desktop 會把它指到 host）。
 - **[`docker/bin/agent-browser`](../docker/bin/agent-browser)**：image 裡的 wrapper，見 [agent-browser](#agent-browser)。
@@ -30,10 +36,10 @@ flowchart LR
 
 ## 設定步驟
 
-1. 建立 `browsers.conf`，一個 Chrome 帳號一行：
+1. 建立 `config/browsers.conf`，一個 Chrome 帳號一行：
 
     ```bash
-    cp browsers.conf.example browsers.conf
+    cp config/browsers.conf.example config/browsers.conf
     ```
 
     每行一個 `port:profile_name`：
@@ -44,7 +50,7 @@ flowchart LR
     ```
 
     - `#` 開頭的行與空行會被忽略，但不支援行尾註解：`9223:main # x` 會讓 profile 名稱變成 `main # x`。
-    - `BROWSERS_CONFIG=/path/to/other.conf ./start-browsers.sh` 只換 host 端的清單；`hermes-run.sh` 只同步 repo 根目錄的 `browsers.conf`，容器內的轉發不會跟著換。
+    - `BROWSERS_CONFIG=/path/to/other.conf ./start-browsers.sh` 只換 host 端的清單；`hermes-run.sh` 只同步 repo 的 `config/browsers.conf`，容器內的轉發不會跟著換。
 
 2. 開 Chrome：
 
@@ -58,13 +64,13 @@ flowchart LR
     - 已在 listen 的 port 會跳過，重複執行不會多開。
     - `start` 會等每個 port 開始 listen（最多 15 秒）才回報 `[ok]` 或 `[fail]`。
     - `stop` 只砍命令列帶 `remote-debugging-port=<port>` 的 process，不影響你平常用的 Chrome。
-    - 腳本帶了關閉背景節流的旗標，讓視窗被遮住時 CDP 仍能操作，原因見 [cron 的瀏覽器任務跑到一半停住](troubleshooting/cron-chrome-occlusion-stall.md)。
+    - 腳本帶了關閉背景節流的旗標，讓視窗被遮住時 CDP 仍能操作，原因見 [cron 的瀏覽器任務跑到一半停住][cron-stall]。
 
 3. 第一次登入
 
     第一次開的 profile 是全新空白的 Chrome（腳本會印 `user-data-dir 不存在` 的 warn）。在那個 Chrome 視窗手動登入要用的網站，之後登入狀態留在 `<BROWSER_DATA_DIR>/<profile_name>/user-data`，重開也還在。
 
-4. 啟動容器：`./hermes-run.sh up`。容器已在跑時改了 `browsers.conf`，要 `./hermes-run.sh up && ./hermes-run.sh restart`：`cdp_proxy.py` 只在啟動時讀一次清單。
+4. 啟動容器：`./hermes-run.sh up`。容器已在跑時改了 `config/browsers.conf`，要 `./hermes-run.sh up && ./hermes-run.sh restart`：`cdp_proxy.py` 只在啟動時讀一次清單。
 
 5. 設定每個 Hermes profile 接哪個 Chrome：
 
@@ -113,7 +119,7 @@ flowchart LR
 
 ## 多帳號：一個 Chrome 帳號對應一個 profile
 
-`browser_exec` 一個 profile 只能接一個 Chrome，也沒辦法讓每個 skill 或 cron 各自指定。從 script 匯出 `BROWSER_CDP_URL` 也沒用：同一個容器跑多個 profile 時，非啟動的 profile 只讀自己的 `.env`，不讀 process 的環境變數（`/opt/hermes/tools/browser_session_cdp.py` 的 `env_cdp_url`）。所以把帳號綁在 profile 上，一個 Chrome 帳號在 `browsers.conf` 佔一行，對應一個 Hermes profile：
+`browser_exec` 一個 profile 只能接一個 Chrome，也沒辦法讓每個 skill 或 cron 各自指定。從 script 匯出 `BROWSER_CDP_URL` 也沒用：同一個容器跑多個 profile 時，非啟動的 profile 只讀自己的 `.env`，不讀 process 的環境變數（`/opt/hermes/tools/browser_session_cdp.py` 的 `env_cdp_url`）。所以把帳號綁在 profile 上，一個 Chrome 帳號在 `config/browsers.conf` 佔一行，對應一個 Hermes profile：
 
 ```text
 script 的 -p <profile> → 該 profile 的 browser.cdp_url → port → 登入某帳號的 Chrome
@@ -144,7 +150,7 @@ agent-browser --cdp 9224 snapshot -i
 ./hermes-run.sh cli config set browser.cdp_url ""
 ```
 
-金鑰寫在 `<data dir>/.env`，其他 profile 寫在 `<data dir>/profiles/<名稱>/.env`；`config set` 對其他 profile 加 `-p <profile>`。改完重啟 gateway：
+金鑰寫在 default profile 的 `~/.hermes/.env`，其他 profile 寫在 `~/.hermes/profiles/<名稱>/.env`；`config set` 對其他 profile 加 `-p <profile>`。其他 home 把 `~/.hermes` 換成該 home 的 data dir。改完重啟 gateway：
 
 ```bash
 ./hermes-run.sh cli gateway restart
@@ -169,7 +175,7 @@ image 已內建 Chromium，不需要金鑰。開的是沒有登入狀態的 head
 
 ### Browserbase
 
-1. 到 [browserbase.com](https://browserbase.com) 取得 API key 與 project ID，寫進 `<data dir>/.env`：
+1. 到 [browserbase.com](https://browserbase.com) 取得 API key 與 project ID，寫進 `~/.hermes/.env`：
 
     ```ini
     BROWSERBASE_API_KEY=...
@@ -195,7 +201,7 @@ image 已內建 Chromium，不需要金鑰。開的是沒有登入狀態的 head
 
 ### Browser Use
 
-1. 到 [browser-use.com](https://browser-use.com) 取得 API key，寫進 `<data dir>/.env`：
+1. 到 [browser-use.com](https://browser-use.com) 取得 API key，寫進 `~/.hermes/.env`：
 
     ```ini
     BROWSER_USE_API_KEY=...
@@ -211,7 +217,7 @@ image 已內建 Chromium，不需要金鑰。開的是沒有登入狀態的 head
 
 ### Firecrawl
 
-1. 到 [firecrawl.dev](https://firecrawl.dev) 取得 API key，寫進 `<data dir>/.env`。這把 key 也給 Firecrawl 網頁搜尋用：
+1. 到 [firecrawl.dev](https://firecrawl.dev) 取得 API key，寫進 `~/.hermes/.env`。這把 key 也給 Firecrawl 網頁搜尋用：
 
     ```ini
     FIRECRAWL_API_KEY=...
@@ -252,7 +258,7 @@ image 已內建 Chromium，不需要金鑰。開的是沒有登入狀態的 head
     ./hermes-run.sh cli camofox setup --url http://host.docker.internal:9377
     ```
 
-    結果是 `<data dir>/.env` 多一行 `CAMOFOX_URL=http://host.docker.internal:9377`。
+    結果是 `~/.hermes/.env` 多一行 `CAMOFOX_URL=http://host.docker.internal:9377`。
 
 4. 啟用 toolset。`--platform` 不寫時只套用到 CLI：
 
@@ -280,6 +286,10 @@ image 已內建 Chromium，不需要金鑰。開的是沒有登入狀態的 head
 ./hermes-run.sh cli config set browser.auto_local_for_private_urls false
 ```
 
+## Linux
+
+尚未支援。compose 已經讓容器在 Linux 上也解析得到 `host.docker.internal`，但 Chrome 的 `--remote-debugging-port` 只聽 host 的 `127.0.0.1`，從容器連過去會被拒絕。Docker Desktop 會把連線轉到 host 的 localhost，所以 macOS 沒有這個問題。要支援 Linux，得在 host 上另外把 debug port 轉出來。
+
 ## 常見錯誤
 
 ### `browser_exec` 報 `BU_CDP_URL=... unreachable after 30s`
@@ -287,7 +297,7 @@ image 已內建 Chromium，不需要金鑰。開的是沒有登入狀態的 head
 `cdp_url` 對應的 Chrome 連不上時，`browser_exec` 等 30 秒後直接失敗，不會退回容器內的 Chromium（訊息來自 `browser_harness/daemon.py`）。依序檢查：
 
 1. `./start-browsers.sh status`：Chrome 有沒有在跑。
-2. 該 port 在不在 `browsers.conf`：不在的話加進去，再 `./hermes-run.sh up && ./hermes-run.sh restart`。
+2. 該 port 在不在 `config/browsers.conf`：不在的話加進去，再 `./hermes-run.sh up && ./hermes-run.sh restart`。
 3. `./hermes-run.sh cli -p <profile> config get browser.cdp_url`：port 對不對。
 
 ### 驗證連線的 `curl` 失敗
@@ -308,10 +318,7 @@ image 已內建 Chromium，不需要金鑰。開的是沒有登入狀態的 head
 
 ### 背景 cron 跑到一半卡住
 
-見 [cron 的瀏覽器任務跑到一半停住](troubleshooting/cron-chrome-occlusion-stall.md)。
-
-## Linux
-
-尚未支援。compose 已經讓容器在 Linux 上也解析得到 `host.docker.internal`，但 Chrome 的 `--remote-debugging-port` 只聽 host 的 `127.0.0.1`，從容器連過去會被拒絕。Docker Desktop 會把連線轉到 host 的 localhost，所以 macOS 沒有這個問題。要支援 Linux，得在 host 上另外把 debug port 轉出來。
+見 [cron 的瀏覽器任務跑到一半停住][cron-stall]。
 
 [official]: https://hermes-agent.nousresearch.com/docs/user-guide/features/browser
+[cron-stall]: troubleshooting/cron-chrome-occlusion-stall.md

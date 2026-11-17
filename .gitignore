@@ -49,11 +49,12 @@ dist/
 build/
 .npm/
 
-# config
-browsers.conf
+# config/：機器專屬的真檔不進版控，只追蹤範本和說明
+config/**
+!config/**/
+!config/**/*.example
+!config/**/README.md
 .gstack/
-compose.env
-platforms/*.env
 
 # patch authoring workspace (see patches/README.md)
 patches/.src/

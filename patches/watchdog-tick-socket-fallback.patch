@@ -1,0 +1,21 @@
+--- a/gateway/shutdown_watchdog.py	2026-11-17 17:55:52
++++ b/gateway/shutdown_watchdog.py	2026-11-17 17:55:58
+@@ -366,9 +366,15 @@
+             tick_socket_path = unix_path
+             tick_socket_path.parent.mkdir(parents=True, exist_ok=True)
+             _sweep_stale_tick_sockets(tick_socket_path)
+-            tick_server = await asyncio.start_unix_server(_tick_socket_handler,
+-                                                          path=str(tick_socket_path))
+-        else:
++            try:
++                tick_server = await asyncio.start_unix_server(_tick_socket_handler,
++                                                              path=str(tick_socket_path))
++            except OSError as exc:
++                # Older Docker Desktop bind mounts refuse AF_UNIX nodes (EPERM): use loopback instead.
++                logger.info("Loop tick socket cannot be created in %s (%s); using loopback TCP",
++                            tick_socket_path.parent, exc.strerror or exc)
++                tick_socket_path = None
++        if tick_server is None:
+             tick_server = await asyncio.start_server(_tick_socket_handler, host="127.0.0.1", port=0)
+             for _s in tick_server.sockets or []:
+                 with contextlib.suppress(Exception):

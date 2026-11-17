@@ -34,6 +34,14 @@ patch 對應 `config/compose.env` 的 `HERMES_VERSION`。換版本後套不上�
 
 回歸測試：[`test_control_socket_stale_inode.py`](../tests/test_control_socket_stale_inode.py)。
 
+### `watchdog-tick-socket-fallback.patch`
+
+改 `gateway/shutdown_watchdog.py`。gateway 的 watchdog 在 data dir 建一個 unix socket，用來確認 event loop 沒有卡死。在同樣不准建 socket 的 bind mount 上，上游只印 warning 和 traceback，watchdog 就失去卡死偵測。
+
+上游對 Windows 和路徑過長的情況，已經改用容器內 `127.0.0.1` 的隨機 TCP port，而且 liveness probe 會優先讀 heartbeat 裡的 `loop_tick_tcp_port`。這個 patch 讓 unix socket bind 失敗時也走這條路。這個 port 不對外發布，跟 `HERMES_BIND_ADDR` 無關。
+
+回歸測試：[`test_watchdog_tick_socket_fallback.py`](../tests/test_watchdog_tick_socket_fallback.py)。
+
 DingTalk SDK 不是 patch，而是 Dockerfile 在 build 時從上游 lockfile 的 `dingtalk` extra 安裝；原因與症狀見 [`skills/patch-dingtalk/SKILL.md`](../skills/patch-dingtalk/SKILL.md)。
 
 ## 重算或新增 patch

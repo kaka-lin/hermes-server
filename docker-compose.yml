@@ -4,33 +4,38 @@ services:
       context: .
       args:
         # Pin the upstream base; use latest only for upgrade testing.
-        HERMES_VERSION: ${HERMES_VERSION:-v2026.9.21}
-        # Install a concrete CLI instead of relying on Hermes's lazy npx fallback.
+        HERMES_VERSION: ${HERMES_VERSION:-v0.23.1}
+        # agent-browser lets skills pick a host Chrome per command (--cdp); Hermes itself no longer ships it.
         AGENT_BROWSER_VERSION: ${AGENT_BROWSER_VERSION:-0.26.0}
     # HERMES_VERSION selects both the base and custom image tag.
-    image: kakalin/hermes-agent:${HERMES_VERSION:-v2026.9.21}
+    image: ${HERMES_IMAGE:-kakalin/hermes-agent}:${HERMES_VERSION:-v0.23.1}
     container_name: "${HERMES_CONTAINER_NAME:-hermes}"
     restart: unless-stopped
-    # Leave time for gateway session and database shutdown.
-    stop_grace_period: 30s
+    # After SIGTERM the gateway drains running cron jobs and API runs for up to
+    # cron_drain_timeout (30s) plus teardown; a shorter grace kills them mid-run.
+    stop_grace_period: 45s
     command: [ "bash", "-c", "python3 /opt/data/scripts/cdp_proxy.py & exec hermes gateway run" ]
     ports:
       - "${HERMES_GATEWAY_PORT:-8642}:8642"
       - "${HERMES_DASHBOARD_PORT:-9119}:9119"
     volumes:
       - ${HERMES_DATA_DIR:-${HOME}/.hermes}:/opt/data
-    # Docker Desktop bind mounts cannot reliably host Unix sockets.
-    tmpfs:
-      - /run/hermes:uid=10000,gid=10000,mode=0700
-    # Runtime secrets live in /opt/data/.env; this repo's .env is Compose-only.
+    # Docker Desktop provides host.docker.internal; this line adds it on Linux.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Runtime secrets live in /opt/data/.env; Compose variables come from compose.env
+    # and platforms/<platform>.env.
     environment:
       TZ: ${TZ:-Asia/Taipei}
+      # Where cdp_proxy.py forwards CDP connections (the host running Chrome).
+      CDP_HOST: ${CDP_HOST:-host.docker.internal}
       API_SERVER_ENABLED: "true"
       API_SERVER_HOST: "0.0.0.0"
-      API_SERVER_CORS_ORIGINS: "*"
-      HERMES_RUNTIME_DIR: "/run/hermes"
-      # Let cont-finish.d drain dynamic s6 gateways for up to 20 seconds.
-      S6_KILL_FINISH_MAXTIME: "22000"
+      API_SERVER_CORS_ORIGINS: "${HERMES_API_CORS_ORIGINS:-*}"
+      # Remap the container's hermes user to the host user that owns the data dir (needed on
+      # Linux; Docker Desktop hides ownership). Empty means no remap.
+      HERMES_UID: "${HERMES_UID:-}"
+      HERMES_GID: "${HERMES_GID:-}"
       # Dashboard and gateway share one container and one data writer.
       HERMES_DASHBOARD: "${HERMES_DASHBOARD:-1}"
       # Non-loopback dashboards require credentials; override these defaults in /opt/data/.env.
@@ -38,16 +43,17 @@ services:
       HERMES_DASHBOARD_BASIC_AUTH_PASSWORD: "${HERMES_DASHBOARD_BASIC_AUTH_PASSWORD:-hermes_default_secret}"
     # Shared memory for Chromium.
     shm_size: "${HERMES_SHM_SIZE:-1g}"
-    # 內網 DNS 無法穩定解析外部域名，強制使用公共 DNS
-    # 避免關閉 VPN 後 container 整個失去外網（Discord 下線 / Telegram 卡死 / LLM timeout）
+    # Internal DNS cannot reliably resolve external domains, so force public DNS;
+    # otherwise the container loses the internet after the VPN drops (Discord offline,
+    # Telegram stuck, LLM timeouts).
     dns:
-      - 1.1.1.1
-      - 8.8.8.8
-    # Python 底層 Socket/DNS 快取在 VPN 切換後可能卡死；
-    # healthcheck 定期探測外網，快速暴露 unhealthy 狀態方便處理
-    # 詳見 docs/troubleshooting/docker-dns-vpn.md
+      - ${HERMES_DNS_PRIMARY:-1.1.1.1}
+      - ${HERMES_DNS_SECONDARY:-8.8.8.8}
+    # Python's socket/DNS cache can wedge after a VPN switch; probing the internet
+    # periodically surfaces an unhealthy state quickly.
+    # See docs/troubleshooting/docker-dns-vpn.md
     healthcheck:
-      test: [ "CMD", "python3", "-c", "import urllib.request as u; u.urlopen(u.Request('https://discord.com', headers={'User-Agent': 'hermes-healthcheck'}), timeout=5)" ]
+      test: [ "CMD", "python3", "-c", "import urllib.request as u; u.urlopen(u.Request('${HERMES_HEALTHCHECK_URL:-https://discord.com}', headers={'User-Agent': 'hermes-healthcheck'}), timeout=5)" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -57,7 +63,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: ${HERMES_MEMORY_LIMIT:-4G}
+          memory: ${HERMES_MEMORY_LIMIT:-6G}
           cpus: "${HERMES_CPU_LIMIT:-2.0}"
 
 networks:

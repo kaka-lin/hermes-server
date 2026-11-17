@@ -1,265 +1,111 @@
-# Hermes Agent DingTalk 整合指南
+# DingTalk
 
-這份文件說明如何將 Hermes Agent 設定為 DingTalk (釘釘) 聊天機器人。機器人透過 DingTalk 的 Stream Mode (Stream 模式) 連線，無需公開的 webhook URL 或伺服器，並使用 DingTalk 的 session webhook API 進行回覆，支援 Markdown 格式的訊息。
+Hermes 用 DingTalk 的 Stream 模式收訊息，由容器主動連出去，不需要公開 URL。這裡是在本專案接上 DingTalk 的步驟，以及這個 image 和上游的差異；完整選項見[官方 DingTalk 文件][official]。
 
-## 1. 預設行為與機制
+## 這個 image 和上游的差異
 
-- **DM 私訊**：每個私訊對話都會建立獨立的 session。
-- **群組聊天**：預設情況下，群組內的使用者在與機器人對話時，每個人都會有各自獨立的 session，並不會共享整個群組的對話上下文。
+- **SDK 在 build 時裝好**：上游 image 沒有 `dingtalk-stream`，要到執行期才 lazy-install。那時 adapter 模組已經 import 完，Stream handler 綁錯基底類別，每則訊息都會丟出 `_IncomingHandler` 沒有 `raw_process` 的錯誤，bot 永遠不回。[`Dockerfile`](../../Dockerfile) 在 build 時從上游 lockfile 安裝 `dingtalk` extra，不需要手動裝套件。
+- **[`dingtalk-send-routing.patch`](../../patches/dingtalk-send-routing.patch)**：讓 `send_message` 能送到指定群組，見[送到指定群組](#送到指定群組)。
 
-這可以在 `config.yaml` 中透過以下設定來控制：
+原因與細節見 [`skills/patch-dingtalk/SKILL.md`](../../skills/patch-dingtalk/SKILL.md) 與 [`patches/README.md`](../../patches/README.md)。
 
-```yaml
-group_sessions_per_user: true
-```
+## 每個 profile 一個應用
 
-如果希望整個群組共享同一個對話上下文，請將此值設為 `false`。
+一個容器的 gateway 會帶起 home 底下所有 profile，每個 profile 讀自己的 `.env`：
 
-## 2. 系統需求與套件安裝
+- default profile：`<data dir>/.env`
+- 其他 profile：`<data dir>/profiles/<名稱>/.env`
 
-在開始之前，請確保已經安裝所需的 Python 套件：
+每個 profile 要有**自己的** DingTalk 應用（Client ID / Client Secret）。同一組憑證不能給兩個 profile，也不能給兩個容器。profile 與 home 的關係見 [Agent、Home 與 Profile](../agents-and-profiles.md)。
+
+## 建立應用
+
+1. 用管理員帳號登入 [DingTalk 開發者後台](https://open-dev.dingtalk.com/)。
+2. 進 **應用開發 → 企業內部開發** 建立應用（依後台版本是 H5 微應用或機器人）。
+3. 在 **憑證與基礎資訊** 複製 `Client ID`（AppKey）與 `Client Secret`（AppSecret）。
+4. 在 **新增能力** 加入 **機器人**，**訊息接收模式** 選 **Stream 模式**。
+5. 在 **版本管理與發布** 建立新版本並發布，組織內的人才搜得到機器人、把它加進群組。
+6. 取得要放進白名單的 user ID：在管理後台的通訊錄查，或先啟動 gateway、傳訊息給機器人，再到 log 找 `sender_id`。
+
+## 填設定
+
+### `.env`
+
+編輯該 profile 的 `.env`：
 
 ```bash
-pip install "hermes-agent[dingtalk]"
+DINGTALK_CLIENT_ID=<AppKey>
+DINGTALK_CLIENT_SECRET=<AppSecret>
+DINGTALK_ALLOWED_USERS=<user ID>   # 多個用逗號分隔
 ```
 
-或者可以手動安裝個別依賴套件：
+使用者白名單一定要放 `.env` 的 `DINGTALK_ALLOWED_USERS`：gateway 授權只看這個變數，`config.yaml` 的白名單要經橋接才寫進去，而非 default 的 profile 不做這個橋接。
+
+其他變數：
+
+| 變數 | 用途 |
+| --- | --- |
+| `DINGTALK_ALLOW_ALL_USERS` | 設 `true` 允許所有人，不用白名單 |
+| `DINGTALK_REQUIRE_MENTION` | 群組裡是否要 `@機器人` 才回 |
+| `DINGTALK_FREE_RESPONSE_CHATS` | 不用 `@` 就回的群組 ID（`cid...`） |
+| `DINGTALK_MENTION_PATTERNS` | 視為叫機器人的文字 pattern，例如 `^小马` |
+| `DINGTALK_HOME_CHANNEL` | cron 結果預設送到的群組 ID（`cid...`） |
+| `DINGTALK_WEBHOOK_URL` | 自訂群機器人的 webhook，送到指定群組失敗時的後備 |
+
+也可以用互動精靈寫入（`-p` 指定 profile，default profile 省略），它支援掃 QR code 授權或手動貼憑證：
 
 ```bash
-pip install dingtalk-stream httpx alibabacloud-dingtalk
+./hermes-run.sh cli -p <profile> gateway setup
 ```
 
-- `dingtalk-stream`：DingTalk 官方 Stream 模式 SDK（基於 WebSocket 的即時通訊）。
-- `httpx`：用於發送非同步 HTTP 請求的客戶端（透過 session webhooks 發送回覆）。
-- `alibabacloud-dingtalk`：DingTalk OpenAPI SDK，用於支援 AI 卡片、表情符號回應和媒體下載功能。
+### `config.yaml`
 
-## 3. 設定步驟
-
-### 3.1 步驟一：建立 DingTalk 應用程式
-
-1. 前往 [DingTalk 開發者後台](https://open-dev.dingtalk.com/)。
-2. 使用你的 DingTalk 管理員帳號登入。
-3. 點選 **Application Development** (應用開發) -> **Custom Apps** (企業內部開發) -> 透過 **H5 微應用** (H5 Micro-App) 或是 **機器人** (Robot) 來建立應用程式（視你的後台版本而定）。
-4. 填寫應用程式資訊：
-
-    - **App Name**：例如 `Hermes Agent`
-    - **Description**：選填
-
-5. 建立完成後，前往 **Credentials & Basic Info** (憑證與基礎資訊) 尋找你的 `Client ID` (AppKey) 和 `Client Secret` (AppSecret)。請將這兩個值複製下來。
-
-    > [!WARNING]
-    > `Client Secret` 僅在建立應用程式時顯示一次。如果遺失，必須重新產生。請勿將這些憑證公開或提交至 Git 儲存庫。
-
-### 3.2 步驟二：啟用機器人能力
-
-1. 在應用程式設定頁面中，前往 **Add Capability** (新增能力) -> **Robot** (機器人)。
-2. 啟用機器人能力。
-3. 在 **Message Reception Mode** (訊息接收模式) 中，選擇 **Stream Mode** (Stream 模式)。這也是官方推薦的方式，無需公開的 URL 即可運作。
-
-### 3.3 步驟三：版本管理與發布
-
-為了讓組織內的其他使用者能夠搜尋到該機器人並將其加入群組，必須將應用程式發布上線：
-
-1. 在左側選單進入 **Version Management & Release** (版本管理與發布)。
-2. 點選 **Create New Version** (建立新版本)，填寫版本號與更新說明。
-3. 儲存後，點選 **Publish** (發布) 即可上線。
-
-### 3.4 步驟四：取得 DingTalk 使用者 ID
-
-Hermes Agent 會使用你的 DingTalk 使用者 ID 來限制誰可以與機器人互動。你可以透過以下兩種方式取得：
-
-1. 詢問組織管理員：可以在管理後台的 **Contacts -> Members** 找到。
-2. 透過日誌：啟動 Hermes gateway 並發送訊息給機器人，接著在終端機日誌中尋找 `sender_id`。
-
-### 3.5 步驟五：設定 Hermes Agent
-
-你可以選擇互動式設定或是手動設定。
-
-#### 選項 A：互動式設定（推薦）
-
-執行官方的設定腳本，按照終端機提示選擇 **DingTalk**，並完成授權。
-
-- **原生 Local 環境**：
-  直接在終端機輸入以下指令：
-
-  ```bash
-  hermes gateway setup
-  ```
-
-- **Docker 環境**：
-  在 `docker-compose.yml` 所在目錄執行，透過 Compose 啟動一次性互動容器（會走 entrypoint 自動切換到 `hermes` 使用者並啟用 venv，設定會寫入掛載的資料卷）：
-
-  ```bash
-  docker compose run --rm hermes gateway setup
-  ```
-
-  > 💡 **提示**：設定完成後，請重新啟動主容器以套用變更：`docker compose restart hermes`。
-
-設定精靈提供兩種授權方式：
-
-- **QR-code 掃描**（推薦）：在終端機列印出 QR code，使用 DingTalk App 掃描授權。
-- **手動輸入**：手動貼上 `Client ID`、`Client Secret` 和允許的使用者 ID。
-
-#### 選項 B：手動設定
-
-在 `~/.hermes/.env` (或專案的 `.env`) 中加入以下設定：
-
-```env
-# 必要設定
-DINGTALK_CLIENT_ID=your-app-key
-DINGTALK_CLIENT_SECRET=your-app-secret
-
-# 安全性：限制可與機器人互動的使用者 ID（多個使用者可使用逗號分隔）
-DINGTALK_ALLOWED_USERS=user-id-1,user-id-2
-
-# 選擇性設定：群組聊天限制
-# DINGTALK_REQUIRE_MENTION=true
-# DINGTALK_FREE_RESPONSE_CHATS=cidABC==,cidDEF==
-# DINGTALK_MENTION_PATTERNS=^小马
-# DINGTALK_HOME_CHANNEL=cidXXXX==
-# DINGTALK_ALLOW_ALL_USERS=true
-```
-
-在 `~/.hermes/config.yaml` (或專案的 `config.yaml`) 中的平台行為設定：
+平台設定放在 profile 的 `config.yaml`。[`config.example.yaml`](../../config.example.yaml) 用的是：
 
 ```yaml
 gateway:
   platforms:
     dingtalk:
       extra:
-        # 在群組中是否需要被 @ 提及才回覆
         require_mention: true
-        # 平台專屬的允許名單 (與 .env 的 DINGTALK_ALLOWED_USERS 合併)
-        allowed_users:
-          - user-id-1
-          - user-id-2
 ```
 
-## 4. 啟動 Gateway
+`extra` 底下還可以放：
 
-完成設定後，依照部署方式啟動或重啟 DingTalk gateway：
+- `card_template_id`：AI 卡片範本 ID（後台 AI 卡片設定裡找），設了之後回覆改用卡片並串流更新。
+- `robot_code`：機器人代碼，預設等於 Client ID，不同時才要設。
 
-- **原生 Local 環境**：
+群組裡不同使用者預設各自一個 session；要讓整個群組共用上下文，把頂層的 `group_sessions_per_user` 設為 `false`。
 
-  ```bash
-  hermes gateway
-  ```
+## 送到指定群組
 
-- **Docker 環境**：
+一般回覆走訊息附帶的 session webhook，只能回剛收到的那則訊息。cron、背景分身（例如 [`dispatch-agent`](../../skills/dispatch-agent/SKILL.md)）或跨群組發送沒有這個 webhook，要靠 `send_message` 主動送出。上游在這裡有兩個問題，`dingtalk-send-routing.patch` 修好它們：
 
-  ```bash
-  docker compose restart hermes
-  ```
+- **目標解析**：上游對頻道目錄裡沒有的 `cid` 會回 `Could not resolve`。patch 讓 `dingtalk:cidXXXX==` 被當成明確目標。
+- **發送方式**：上游的純文字 `send_message` 只會用 `DINGTALK_WEBHOOK_URL`，而一個自訂群機器人 webhook 只綁一個群組。patch 改成目標是 `cid...` 群組且有 Client ID / Secret 時，先用官方機器人 API（`robot/groupMessages/send`）送到該群組；API 沒確認送達才退回 `DINGTALK_WEBHOOK_URL`。gateway 內對 `cid` 群組沒有 session webhook 時，也走同一個 API。
 
-機器人應會在幾秒內透過 Stream 模式連上 DingTalk。你可以透過私訊或群組發送訊息來測試連線。
-
-## 5. 功能支援與進階設定
-
-### 5.1 AI 卡片 (AI Cards)
-
-Hermes 支援使用 DingTalk 的 AI 卡片來取代純 Markdown 回覆，提供更結構化的顯示方式，並且在生成時支援串流更新。
-
-要啟用 AI 卡片，請在 `config.yaml` 中設定卡片範本 ID (可以在開發者後台的 AI 卡片設定中找到)：
-
-```yaml
-platforms:
-  dingtalk:
-    enabled: true
-    extra:
-      card_template_id: "your-card-template-id"
-```
-
-### 5.2 表情符號回應 (Emoji Reactions)
-
-Hermes 會自動加上表情符號回應以顯示處理狀態：
-
-- 🤔 Thinking (思考中)：機器人開始處理訊息時加入。
-- 🥳 Done (完成)：回覆完成後加入（會取代思考中的符號）。
-
-### 5.3 顯示設定 (Display Settings)
-
-你可以針對 DingTalk 平台自訂顯示行為：
-
-```yaml
-display:
-  platforms:
-    dingtalk:
-      show_reasoning: false # 顯示模型的推理思考過程
-      streaming: true # 啟用串流回應 (與 AI 卡片一起使用)
-      tool_progress: all # 顯示工具執行進度 (all/new/off)
-      interim_assistant_messages: true # 顯示中間的註釋/過渡訊息
-```
-
-如果要隱藏工具進度和中間訊息以保持乾淨的體驗，可設定為：
-
-```yaml
-display:
-  platforms:
-    dingtalk:
-      tool_progress: off
-      interim_assistant_messages: false
-```
-
-### 5.4 主動通知與 Cron 任務 (Home Channel)
-
-若要讓 Cron Jobs 執行完成後將結果主動傳送到 DingTalk，請在 `.env` 設定目標 ID：
+確認 image 有套到 patch（需要已建好的 image）：
 
 ```bash
-DINGTALK_HOME_CHANNEL="cidXXXX==" # 預設通知對象的群組 ID (Conversation ID)
+python3 tests/test_dingtalk_send_routing.py
 ```
 
-> 💡 **提示**：DingTalk 發送主動通知是透過官方的 OpenAPI 直接發起請求，因此**完全不需要**像 LINE 一樣架設公開的 Webhook 隧道 (不需使用 ngrok 或 cloudflared)。
+## 套用與確認
 
-### 5.5 Multi-Agent 背景分身與主動推播 (Webhook 模式)
-
-當透過 `dispatch-agent` 等技能在背景喚醒一個分身（CLI 模式）去執行任務時，該分身由於獨立執行且沒有持續連線的 WebSocket，也沒有使用者訊息帶來的「臨時 session webhook」，因此**無法透過 Gateway 的機制來回覆**。
-
-為了解決這個問題，背景分身在執行 `send_message` 工具時，`_send_dingtalk` 會依下列優先順序投遞：
-
-1. **官方企業機器人 API（優先）**：當 `DINGTALK_CLIENT_ID` / `DINGTALK_CLIENT_SECRET` 已設定，且目標是群組對話 ID（`cid...`）時，會換取 `accessToken` 並透過 `groupMessages/send` 的 `openConversationId` 投遞到**指定的群組**。因此 `dingtalk:cidXXXX==` 這類明確目標可以正確送達對應群組，而不會被綁死在單一群組。
-
-2. **自定義機器人 Webhook（後備）**：當官方 API 失敗，或目標不是群組 ID 時，退回使用 `DINGTALK_WEBHOOK_URL` 對其綁定的群組進行**單向盲發**：
+1. 重啟 gateway 讓新的 `.env` 生效。這會中斷該 home 所有 profile 正在跑的 cron 與對話：
 
     ```bash
-    # 用於特定群組的「自定義機器人」單向廣播
-    # 我們扮演 Client 端主動呼叫釘釘 API，不需架設 Webhook 伺服器
-    DINGTALK_WEBHOOK_URL="https://oapi.dingtalk.com/robot/send?access_token=..."
+    ./hermes-run.sh cli gateway restart
     ```
 
-> 💡 **提示**：自定義機器人 Webhook 是釘釘官方的「自定義群組機器人」功能，每串 URL 綁定單一群組；你只需要在目標群組的設定中新增自定義機器人並獲取這串 URL 即可。官方企業機器人 API 則可依 `openConversationId` 投遞到不同群組，是 Multi-Agent 背景分身能精準回報到指定群組的關鍵。兩者皆與 Gateway 的雙向回覆機制獨立並存。
->
-> ⚠️ 此投遞優先順序需套用 `patch-dingtalk` 修補（見 `skills/patch-dingtalk/`），該修補同時加上 `_parse_target_ref` 的 dingtalk 分支（讓 `dingtalk:cidXXXX==` 被解析為明確目標）與 `_send_dingtalk` 的官方 API 投遞。
+2. 私訊機器人，或在群組 `@` 它，確認有回覆。
+3. 沒回覆時看 log（`./hermes-run.sh logs`，或 data dir 的 `logs/gateway.log`）：
 
-## 6. 常見問題與除錯 (Troubleshooting)
+    - `DINGTALK_CLIENT_ID and DINGTALK_CLIENT_SECRET required`：該 profile 的 `.env` 沒有憑證。
+    - `dingtalk-stream not installed`：image 不是用這個 repo 的 `Dockerfile` 建的，執行 `./hermes-build.sh`。
+    - `No valid session_webhook available`：回覆時找不到原訊息的 webhook（例如中間 gateway 重啟過），重新傳一則訊息即可。
+    - 機器人沒反應也沒錯誤：確認後台已開機器人能力並選 Stream 模式、應用已發布、你的 user ID 在白名單裡。
 
-### 機器人沒有回應訊息
+其他 home 的容器在指令加 `-a <home>`，見 [CLI 指令](../cli.md)。
 
-- **原因**：尚未啟用機器人能力，或 `DINGTALK_ALLOWED_USERS` 未包含你的使用者 ID。
-- **解決方案**：確保應用程式設定中啟用了機器人能力，並且使用 Stream 模式。檢查 `DINGTALK_ALLOWED_USERS` 是否設定正確，然後重啟 gateway。
-
-### 出現 "dingtalk-stream not installed" 錯誤
-
-- **原因**：缺少 `dingtalk-stream` 套件。
-- **解決方案**：執行 `pip install dingtalk-stream httpx` 進行安裝。
-
-### 出現 "DINGTALK_CLIENT_ID and DINGTALK_CLIENT_SECRET required"
-
-- **原因**：`.env` 環境變數未正確設定。
-- **解決方案**：確保 `DINGTALK_CLIENT_ID` (AppKey) 和 `DINGTALK_CLIENT_SECRET` (AppSecret) 已正確設定。
-
-### Stream 斷線或不斷重連
-
-- **原因**：網路不穩定、DingTalk 維護或憑證問題。
-- **解決方案**：系統會自動以指數退避演算法 (2s -> 5s -> 10s...) 進行重連。請檢查憑證是否有效，並確認網路環境允許對外建立 WebSocket 連線。
-
-### 出現 "No session_webhook available"
-
-- **原因**：機器人試圖回覆，但缺乏 session webhook URL。這通常發生在 webhook 逾時，或是機器人在收到訊息後與回覆期間重新啟動。
-- **解決方案**：重新發送一則新的訊息給機器人。
-
-## 7. 其他注意事項
-
-- **Stream 模式**：無須公開 URL，連線由你的機器主動發起。
-- **支援 Markdown 與媒體檔案**：回覆使用 DingTalk Markdown 格式，並且支援視覺工具來解析傳入的圖片和檔案。
-- **訊息長度限制**：每則回覆上限為 20,000 字元，超出的部分會被截斷。
-- **自動去重**：Adapter 會在 5 分鐘的視窗內處理訊息去重，防止重複回應。
+[official]: https://hermes-agent.nousresearch.com/docs/user-guide/messaging/dingtalk

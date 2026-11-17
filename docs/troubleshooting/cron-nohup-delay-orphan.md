@@ -1,44 +1,45 @@
-# cron 隨機延遲用 nohup 變孤兒
-
-> [!IMPORTANT]
-> 查這類「cron 顯示 OK 但沒結果」的問題時，先別接受「系統升級／cgroup／網路瞬斷／OOM」這種沒有日誌佐證的說法，本案這些臆測全部被現場證據推翻。
+# cron 顯示 OK 卻沒有結果
 
 ## 症狀
 
-- cron 清單顯示某次觸發 `last status = OK`，但實際上沒有任何輸出送達設定的訊息平台。
-- 把所有 cron job 都 **暫停（paused）後，背景卻仍有任務進程在跑**，暫停沒讓它停下來。
+- `hermes cron list` 顯示某次觸發成功，但訊息平台沒收到任何輸出。
+- 把所有 cron job 暫停後，`ps aux` 仍看得到任務的進程在跑。
 
-## 背景：這些排程怎麼跑
+## 原因
 
-排程是 **Hermes gateway 內建的 cron**（非 host crontab），到點的 job 在隔離 session 執行，指向 `~/.hermes/scripts/` 下的腳本。舊版常用「金蟬脫殼」把工作丟到背景：
+腳本用 `nohup` 把工作丟到背景、先睡一段隨機時間再執行：
 
 ```bash
 nohup bash -c 'sleep $((RANDOM % 7200)); …' >/dev/null 2>&1 &
 ```
 
-## 根因
+觸發腳本立刻結束，gateway 把這次 job 記為完成。睡著的進程已脫離 gateway 管理：暫停 cron 停不了它、容器重啟它就消失、結果不會送出、失敗也沒人通知。
 
-`nohup … sleep … &` 一旦把工作丟進背景，觸發腳本就秒退、gateway 視該 job 為「已完成」。那個睡 0–2 小時的進程不在 gateway 的 cron 記錄裡：
+改成同步睡也不行：agent 用 terminal 跑腳本受 `terminal.timeout`（預設 180 秒）限制，睡太久會被砍。
 
-- **暫停 cron 殺不掉它**：觸發後即使把所有 cron 暫停，`ps aux` 仍會抓到背景有進程在跑，因為孤兒早已脫離 gateway 監管。
-- **container 重啟即消失**：醒來執行這件事沒有任何持久化保證，能不能活到醒來純靠運氣。
+## 解法：讓 gateway 排一個隨機時間的一次性 job
 
-也不能只把 `&` 拿掉改成同步睡：agent 用 terminal 跑腳本受 `terminal.timeout`（預設 180 秒）管控，同步睡 2 小時會在 180 秒被砍，這正是當初被迫 detach、進而產生孤兒的死結。
+每個任務拆成兩支腳本，放在 data dir 的 `scripts/`：
 
-## 修正：把「隨機」從 sleep 改成「排程偏移量」
-
-gateway 會持久化、監管「排程的 job」，但不會監管「一個在睡覺的孤兒進程」。所以別讓進程去睡，讓 gateway 在隨機的未來時間點幫你開一個 job。每支拆成兩段：
-
-1. 觸發端 `schedule_*.sh`：秒退，算一個隨機分鐘數，向 gateway 註冊一個一次性子 job：
+1. 觸發端 `schedule_*.sh`：算隨機分鐘數，向 gateway 註冊一次性 job 後立刻結束。
 
     ```bash
-    DELAY=$(( RANDOM % 120 + 1 ))
-    /opt/hermes/.venv/bin/python /opt/hermes/hermes cron create "${DELAY}m" \
-      --no-agent --script run_*.sh --name "...-oneshot-$DELAY" --repeat 1 >/dev/null
+    DELAY=$(( RANDOM % 30 + 1 ))
+    hermes cron create "${DELAY}m" \
+      --no-agent --script run_xxx.sh \
+      --failure-deliver "<platform>:<chat_id>" \
+      --name "xxx-oneshot-$DELAY" \
+      --repeat 1 >/dev/null
     ```
 
-2. 執行端 `run_*.sh`：被子 job 在隨機時間點呼叫，**同步**跑真正任務，不 detach。
+2. 執行端 `run_*.sh`：同步跑真正的任務，不要 detach。`--no-agent` 模式下它的 stdout 會原樣送到 `--deliver` 的目標。
 
-這樣隨機時間就變成 `"${DELAY}m"` 這個排程偏移量，由 gateway 持久化在 `~/.hermes/cron/`，即使 container 在等待期間重啟也照樣會 fire。一次性子 job 預設 `--repeat 1`，跑完自動結束、不殘留。
+注意：
 
-> no-agent 子 job 受 `cron.script_timeout_seconds` 管控（預設僅 120 秒），而瀏覽器任務實測可達 7～11 分鐘，須在 `~/.hermes/config.yaml` 放寬（例如 `1800`）。注意 agent 無法自行修改 `config.yaml`（security-sensitive），需人手動改。
+- 從 CLI 建的 job 預設不送到任何地方，要用 `--deliver` 或 `--failure-deliver` 指定。
+- 等待期間容器重啟，只要在到點前回來就會照常執行；錯過到點時間的一次性 job 預設不補跑，見 `hermes cron create --help` 的 `--catch-up`。
+- `--no-agent` 腳本受 `cron.script_timeout_seconds` 限制（預設 3600 秒，[`config.example.yaml`](../../config.example.yaml) 設 7200），瀏覽器任務跑很久時要確認夠長。
+
+## 排查提示
+
+遇到「cron 顯示 OK 但沒結果」，先查腳本有沒有把工作丟到背景，再懷疑網路、OOM 這類沒有 log 佐證的原因。`hermes cron runs` 可以看每次執行的紀錄。

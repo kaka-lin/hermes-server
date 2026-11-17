@@ -3,10 +3,15 @@ model:
   base_url: https://api.openai.com/v1
   default: gpt-5.6-terra
   api_mode: codex_responses
-fallback_providers: []
+fallback_providers:
+  - provider: openai-codex
+    model: gpt-5.6-terra
+    base_url: https://chatgpt.com/backend-api/codex
 credential_pool_strategies:
   gemini: fill_first
-toolsets: '["hermes-cli", "browser"]'
+toolsets:
+  - hermes-cli
+  - browser
 agent:
   max_turns: 160
   gateway_timeout: 1800
@@ -73,12 +78,7 @@ terminal:
   home_mode: auto
   shell_init_files: []
   auto_source_bashrc: true
-  docker_image: nikolaik/python-nodejs:python3.11-nodejs20
   docker_forward_env: []
-  singularity_image: docker://nikolaik/python-nodejs:python3.11-nodejs20
-  modal_image: nikolaik/python-nodejs:python3.11-nodejs20
-  daytona_image: nikolaik/python-nodejs:python3.11-nodejs20
-  vercel_runtime: node24
   container_cpu: 1
   container_memory: 5120
   container_disk: 51200
@@ -94,7 +94,6 @@ web:
   search_backend: ''
   extract_backend: ''
 browser:
-  backend: 'off'
   inactivity_timeout: 120
   command_timeout: 30
   record_sessions: false
@@ -313,7 +312,6 @@ display:
       - context_pct
       - cwd
   copy_shortcut: auto
-  tool_progress_overrides: {}
   tool_progress: 'off'
 dashboard:
   theme: default
@@ -426,66 +424,6 @@ skills:
   guard_agent_created: false
   write_approval: false
   creation_nudge_interval: 15
-  platform_disabled:
-    discord:
-      - architecture-diagram
-      - ascii-art
-      - ascii-video
-      - excalidraw
-      - manim-video
-      - p5js
-      - popular-web-designs
-      - songwriting-and-ai-music
-      - webhook-subscriptions
-      - himalaya
-      - minecraft-modpack-server
-      - pokemon-player
-      - codebase-inspection
-      - github-auth
-      - github-code-review
-      - github-issues
-      - github-pr-workflow
-      - github-repo-management
-      - mcporter
-      - native-mcp
-      - heartmula
-      - songsee
-      - youtube-content
-      - audiocraft-audio-generation
-      - axolotl
-      - clip
-      - dspy
-      - evaluating-llms-harness
-      - fine-tuning-with-trl
-      - gguf-quantization
-      - grpo-rl-training
-      - guidance
-      - huggingface-hub
-      - llama-cpp
-      - modal-serverless-gpu
-      - obliteratus
-      - outlines
-      - peft-fine-tuning
-      - pytorch-fsdp
-      - segment-anything-model
-      - serving-llms-vllm
-      - stable-diffusion-image-generation
-      - unsloth
-      - weights-and-biases
-      - whisper
-      - obsidian
-      - linear
-      - nano-pdf
-      - ocr-and-documents
-      - powerpoint
-      - arxiv
-      - blogwatcher
-      - llm-wiki
-      - polymarket
-      - openhue
-      - xitter
-      - systematic-debugging
-      - test-driven-development
 curator:
   enabled: true
   interval_hours: 168
@@ -555,10 +493,6 @@ hooks_auto_accept: false
 security:
   allow_private_urls: false
   redact_secrets: true
-  tirith_enabled: true
-  tirith_path: tirith
-  tirith_timeout: 5
-  tirith_fail_open: true
   website_blocklist:
     enabled: false
     domains: []
@@ -609,6 +543,7 @@ gateway:
     dingtalk:
       extra:
         require_mention: true
+  multiplex_profiles: true
 streaming:
   enabled: false
   transport: auto
@@ -651,11 +586,7 @@ secrets:
 paste_collapse_threshold: 5
 paste_collapse_threshold_fallback: 5
 paste_collapse_char_threshold: 2000
-_config_version: 44
-fallback_model:
-  model: gpt-5.6-terra
-  provider: openai-codex
-  base_url: https://chatgpt.com/backend-api/codex
+_config_version: 53
 group_sessions_per_user: true
 platform_toolsets:
   cli:
@@ -674,10 +605,6 @@ platform_toolsets:
     - hermes-telegram
   whatsapp:
     - hermes-whatsapp
-session_reset:
-  at_hour: 4
-  idle_minutes: 1440
-  mode: both
 smart_model_routing:
   cheap_model: {}
   enabled: false

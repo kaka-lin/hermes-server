@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
-"""產生簡潔的單次 Hermes cron 遙測通知。"""
+"""Render a short telemetry notice for one Hermes cron run.
+
+Reads the run's log (iteration-budget hits, context compression, timeouts and the
+session ids it touched) and the profile's ``state.db`` (API calls and token usage of
+those sessions), then prints the notice text for the cron job to deliver. Read-only on
+both inputs; knows nothing about scheduling or where the notice is sent.
+"""
 
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sqlite3
 from pathlib import Path
@@ -25,22 +32,35 @@ GATEWAY_IDLE_RE = re.compile(
     r"Job '.+?' idle for \d+s \(inactivity limit \d+s\)", re.IGNORECASE
 )
 SCRIPT_TIMEOUT_RE = re.compile(r"^Script timed out after \d+(?:\.\d+)?s:", re.IGNORECASE | re.MULTILINE)
+# `hermes chat -q` ends with this line. Since v0.23 the gateway owns the session and ignores
+# HERMES_SESSION_SOURCE, so the printed ids are the only reliable handle on this run's sessions.
+SESSION_RE = re.compile(r"^Session:\s+(\S+)", re.MULTILINE)
 
 
 def hms(seconds: int) -> str:
     return f"{seconds // 3600:02d}:{seconds % 3600 // 60:02d}:{seconds % 60:02d}"
 
 
-def usage_summary(state_db: Path, run_tag: str) -> dict[str, int] | None:
+def usage_summary(state_db: Path, session_ids: list[str]) -> dict[str, int] | None:
+    """Usage of the given sessions plus their compression children; None when unreadable."""
+    if not session_ids:
+        return None
     try:
         connection = sqlite3.connect(f"file:{state_db}?mode=ro", uri=True)
+        # Child rows linked by parent_session_id belong to this run too: context-compression
+        # continuations and subagents it delegated to.
         row = connection.execute(
             """
+            WITH RECURSIVE run(id) AS (
+                SELECT value FROM json_each(?)
+                UNION
+                SELECT sessions.id FROM sessions JOIN run ON sessions.parent_session_id = run.id
+            )
             SELECT COUNT(*), COALESCE(SUM(api_call_count), 0),
                    COALESCE(SUM(input_tokens), 0), COALESCE(SUM(output_tokens), 0)
-            FROM sessions WHERE source = ?
+            FROM sessions WHERE id IN (SELECT id FROM run)
             """,
-            (run_tag,),
+            (json.dumps(session_ids),),
         ).fetchone()
         connection.close()
     except (sqlite3.Error, OSError):
@@ -74,7 +94,7 @@ def render(args: argparse.Namespace) -> str:
         "gateway_idle": bool(GATEWAY_IDLE_RE.search(log)),
         "script_timeout": bool(SCRIPT_TIMEOUT_RE.search(log)),
     }
-    usage = usage_summary(Path(args.state_db), args.run_tag)
+    usage = usage_summary(Path(args.state_db), list(dict.fromkeys(SESSION_RE.findall(log))))
 
     lines = [
         f"⏱ 執行：{args.attempts}／總時 {hms(args.elapsed)}",
@@ -106,7 +126,6 @@ def render(args: argparse.Namespace) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--state-db", required=True)
-    parser.add_argument("--run-tag", required=True)
     parser.add_argument("--run-log", required=True)
     parser.add_argument("--attempts", required=True)
     parser.add_argument("--elapsed", required=True, type=int)

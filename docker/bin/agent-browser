@@ -1,0 +1,29 @@
+#!/bin/sh
+# Hermes moves its packaged Chromium with every release and publishes the current
+# path here; agent-browser cannot find it on its own.
+: "${AGENT_BROWSER_EXECUTABLE_PATH:=$(cat /etc/hermes/chromium-executable-path 2>/dev/null)}"
+export AGENT_BROWSER_EXECUTABLE_PATH
+
+# One container serves every profile and agent-browser keeps one daemon per session.
+# A daemon stays bound to the first CDP port it attached to and ignores a later
+# --cdp, so without this two jobs on different Chrome profiles would drive the same
+# Chrome. Key the session by port unless the caller chose one.
+if [ -z "${AGENT_BROWSER_SESSION:-}" ]; then
+  cdp_port="" explicit_session=""
+  previous=""
+  for arg in "$@"; do
+    case "$previous" in
+      --cdp) cdp_port="$arg" ;;
+    esac
+    case "$arg" in
+      --session | --session=*) explicit_session=1 ;;
+    esac
+    previous="$arg"
+  done
+  if [ -n "$cdp_port" ] && [ -z "$explicit_session" ]; then
+    # --cdp also takes a URL; the session name becomes a socket file name, so no '/' or ':'.
+    export AGENT_BROWSER_SESSION="cdp-$(printf '%s' "$cdp_port" | tr -c 'A-Za-z0-9' '-')"
+  fi
+fi
+
+exec /opt/agent-browser/node_modules/.bin/agent-browser "$@"

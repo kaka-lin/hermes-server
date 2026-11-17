@@ -1,23 +1,14 @@
-# 🤖 Hermes Agent 專用 Skills
+# skills/
 
-這個目錄 (`hermes-server/skills/`) 專門存放**高度綁定 Hermes 基礎設施**的專用操作流程與補丁 (Patches)。
+綁定這套 Hermes 部署的 skill。這裡的 skill 通常有這些特徵：
 
-## 📁 這裡放什麼？
+- **基礎設施操作**：用到本專案的路徑（例如 `/opt/hermes/`、`/opt/data/`）、CLI 指令或環境變數。
+- **修補與維護**：說明仍由本專案維護的修補。
+- **生命週期管理**：和部署架構連動，架構重構或升級時可能要跟著更新或移除。
 
-本目錄存放的 Skill 通常具有以下特徵：
+目前包含：
 
-- **基礎設施操作 (Infrastructure Operations)**：包含專案特定的絕對路徑（如 `/opt/hermes/`）、特定的 CLI 指令或環境變數配置。
-- **補丁與維護 (Patches & Maintenance)**：針對仍由本專案維護的特定修復流程。
-- **生命週期管理**：與 Hermes Server 架構連動的操作，當系統重構或升級時，這些 Skill 可能需要同步更新或移除。
+- [`dispatch-agent`](dispatch-agent/SKILL.md)：主 agent 在背景派 profile 分身執行任務，再代發報告。
+- [`patch-dingtalk`](patch-dingtalk/SKILL.md)：DingTalk 在這個 image 裡的兩個修正（送到指定群組、build 時裝 SDK）的原因與症狀對照。
 
-### 目前包含的 Skills
-
-- **`dispatch-agent`**: 總指揮專用的背景任務派發腳本。
-
-## 💡 通用 Skills 請至 Agent Library
-
-如果你要尋找或新增的是**跨平台可復用**的領域知識（例如：「如何寫好 Git Commit」、「如何分析 FastAPI 專案架構」等），請**不要**放在這裡。
-
-👉 **請前往：[Agent Library](../../../agent-library/)**
-
-`agent-library` 是一個獨立的資源庫，專門收集跨平台通用的 Agent Skills、Workflows 和 Rules。將通用知識與專案基礎設施分離，能讓你的 Agent 更聰明且易於維護！
+跨專案通用的 skill 不放這裡，放 [agent-library](../../agent-library/)。

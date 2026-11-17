@@ -1,14 +1,14 @@
-"""CDP TCP proxy: forward container loopback ports to the Docker Desktop host.
+"""CDP TCP proxy: forward container loopback ports to the Docker host.
 
-Hermes Gateway runs inside Docker, but the Chrome it controls runs on the Mac
-host. This forwarder listens on ``127.0.0.1:<port>`` inside the container and
-relays raw bytes to ``192.168.65.254:<port>`` (Docker Desktop's host address).
+Hermes Gateway runs inside Docker, but the Chrome it controls runs on the host.
+This forwarder listens on ``127.0.0.1:<port>`` inside the container and relays
+raw bytes to ``$CDP_HOST:<port>`` (default ``host.docker.internal``).
 Connecting through ``127.0.0.1`` makes Chrome's DNS-rebinding check pass,
 because the HTTP ``Host`` header becomes ``127.0.0.1`` — the proxy never parses
 or rewrites payloads.
 
 Ports come from ``scripts/host/browsers.conf`` inside the data dir (relative to
-this script). ``hermes-stack.sh new`` copies it there from the repo-root
+this script). ``hermes-run.sh up`` copies it there from the repo-root
 ``browsers.conf`` that start-browsers.sh reads, so the host launcher and the
 in-container forwarder share one port list. Optional CLI arguments override the
 config file for ad-hoc one-off forwards.
@@ -25,11 +25,10 @@ import threading
 import time
 from pathlib import Path
 
-# Docker Desktop reserves this address for reaching the Mac host from inside a
-# container (equivalent to host.docker.internal).
-HOST_IP = "192.168.65.254"
+# Docker Desktop resolves host.docker.internal to the host; docker-compose.yml maps it to
+# host-gateway so the name also exists on Linux. CDP_HOST comes from platforms/<platform>.env.
+HOST = os.environ.get("CDP_HOST") or "host.docker.internal"
 
-# Same env var start-browsers.sh honors, so both sides can be repointed together.
 DEFAULT_CONFIG = Path(__file__).resolve().parent / "host" / "browsers.conf"
 
 BUFFER_SIZE = 4096
@@ -52,14 +51,14 @@ def forward(src: socket.socket, dst: socket.socket) -> None:
         dst.close()
 
 
-def start_proxy(local_port: int, target_ip: str, target_port: int) -> None:
+def start_proxy(local_port: int, target_host: str, target_port: int) -> None:
     """Listen on the container loopback and forward each connection to the host.
 
     Runs forever; intended to be launched in a daemon thread per port.
 
     Args:
         local_port: Port to bind on the container's 127.0.0.1.
-        target_ip: Host address to forward to (Docker Desktop magic IP).
+        target_host: Host name or address to forward to, resolved on every connection.
         target_port: Port on the host to connect to.
     """
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -71,13 +70,13 @@ def start_proxy(local_port: int, target_ip: str, target_port: int) -> None:
         print(f"Failed to bind {local_port}: {exc}", file=sys.stderr)
         return
 
-    print(f"Proxy listening on 127.0.0.1:{local_port} -> {target_ip}:{target_port}")
+    print(f"Proxy listening on 127.0.0.1:{local_port} -> {target_host}:{target_port}")
 
     while True:
         client: socket.socket | None = None
         try:
             client, _ = server.accept()
-            remote = socket.create_connection((target_ip, target_port))
+            remote = socket.create_connection((target_host, target_port))
             threading.Thread(target=forward, args=(client, remote), daemon=True).start()
             threading.Thread(target=forward, args=(remote, client), daemon=True).start()
         except OSError as exc:
@@ -134,6 +133,7 @@ def resolve_ports(argv: list[str]) -> list[int]:
     if argv:
         return [int(arg) for arg in argv]
 
+    # Escape hatch for ad-hoc runs; the container does not inherit the host's BROWSERS_CONFIG.
     config_path = Path(os.environ.get("BROWSERS_CONFIG", DEFAULT_CONFIG))
     try:
         return load_ports_from_config(config_path)
@@ -156,7 +156,7 @@ def main() -> int:
 
     for port in ports:
         threading.Thread(
-            target=start_proxy, args=(port, HOST_IP, port), daemon=True
+            target=start_proxy, args=(port, HOST, port), daemon=True
         ).start()
 
     while True:

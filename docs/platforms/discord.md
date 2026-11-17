@@ -1,151 +1,92 @@
-# 🦅 Hermes Agent Discord 全功能安裝與配置指南
+# Discord
 
-本指南說明如何將 Hermes Agent 透過內建的 Messaging Gateway 連接至 Discord 平台。
+gateway 用 bot token 連上 Discord，不需要公開的 URL。這裡是在本專案接上 Discord 的步驟；完整選項見[官方 Discord 文件][official]。
 
-> **文件版本資訊**：本指南依據 [Hermes Agent 官方 Gateway 文件](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/discord) 整理。
+## 每個 profile 一個 bot
 
-## 1. 第一階段：Discord 開發者後台 (準備工作)
+一個容器的 gateway 會帶起 home 底下所有 profile，每個 profile 讀自己的 `.env`：
 
-1. **建立 App**：前往 [Discord Developer Portal](https://discord.com/developers/applications) -> New Application，輸入名稱並建立。
-2. **獲取 Bot Token**：
+- default profile：`<data dir>/.env`
+- 其他 profile：`<data dir>/profiles/<名稱>/.env`
 
-    - 在左側選單進入「Bot」頁面。
-    - 在「Authorization Flow」區塊，將 **Public Bot** 設為 **ON** (強烈建議，為了後續產生邀請連結)，**Require OAuth2 Code Grant** 保持 **OFF**。
-    - 點擊 `Reset Token`，取得機器人的金鑰，**請妥善保存，後續無法再次查看**。
-3. **開啟特權 (Intents)**：在同一個「Bot」頁面向下捲動找到「Privileged Gateway Intents」區塊，請務必開啟以下特權：
+每個 profile 要有**自己的** Discord application 與 bot token。同一組 token 不能給兩個 profile，也不能給兩個容器；要再加一個 bot，就在 Developer Portal 再建一個 application。profile 與 home 的關係見 [Agent、Home 與 Profile](../agents-and-profiles.md)。
 
-    - **Message Content Intent (必開)**：讓 Agent 能夠讀取頻道內的訊息內容，若未開啟，機器人會收到空訊息而完全無法回覆。
-    - **Server Members Intent (必開)**：讓 Agent 能夠讀取伺服器內的成員資訊，用來驗證白名單 (`DISCORD_ALLOWED_USERS`) 中的使用者。
+## 建立 bot
 
-4. **產生邀請連結並將機器人加入伺服器**：
-    點擊左側選單的 `Installation`。
+1. 到 [Discord Developer Portal](https://discord.com/developers/applications) 按 **New Application**。
+2. 進 **Bot** 頁：
+    - **Public Bot** 設為 ON（Discord 產生的邀請連結需要它），**Require OAuth2 Code Grant** 保持 OFF。
+    - 按 **Reset Token** 複製 token，它只顯示一次。
+3. 在同一頁的 **Privileged Gateway Intents** 打開：
+    - **Message Content Intent**：必開，沒開的話 Discord 會拒絕連線。
+    - **Server Members Intent**：用使用者名稱或角色做白名單時需要。
+4. 進 **Installation** 頁產生邀請連結：
+    - **Installation Contexts** 勾 `Guild Install`，**Install Link** 選 `Discord Provided Link`。
+    - **Scopes** 選 `bot` 與 `applications.commands`。
+    - **Permissions** 至少勾 `View Channels`、`Send Messages`、`Embed Links`、`Attach Files`、`Read Message History`；建議再加 `Create Public Threads`、`Send Messages in Threads`、`Add Reactions`。
+5. 用邀請連結把 bot 加進伺服器，你要在該伺服器有 Manage Server 權限。
+6. 在 Discord 用戶端的 **使用者設定 → 進階** 打開 **開發者模式**，對自己的名字按右鍵 **複製使用者 ID**；頻道 ID 也用同樣方式複製。
 
-    - 在「Installation Contexts」啟用 `Guild Install`。
-    - 在「Install Link」選擇 `Discord Provided Link`。
-    - 設定「Default Install Settings for Guild Install」：
-      - **Scopes**：選擇 `bot` 與 `applications.commands` (讓 Hermes 的 Skills 支援斜線指令)。
-      - **Permissions**：至少需勾選 `View Channels`, `Send Messages`, `Embed Links`, `Attach Files`, `Read Message History`。建議可額外勾選 `Send Messages in Threads`, `Add Reactions`。
-    - 複製上方產生的網址，在瀏覽器中打開並將機器人加入你的伺服器。
+## 填設定
 
-5. **獲取 Discord User ID**：
-    Hermes 預設透過 User ID 來控制誰可以使用機器人。
+### `.env`
 
-    - 在 Discord 應用程式中，前往「使用者設定 (齒輪圖示)」 -> 「進階 (Advanced)」 -> 開啟「開發者模式 (Developer Mode)」。
-    - 對著自己的名字點擊右鍵 -> 「複製使用者 ID (Copy User ID)」。
+編輯該 profile 的 `.env`，至少填 token 和白名單：
 
-## 2. 第二階段：設定 Hermes Gateway 並啟動
+```bash
+DISCORD_BOT_TOKEN=<bot token>
+DISCORD_ALLOWED_USERS=<你的 user ID>   # 多個用逗號分隔
+```
 
-Hermes 主要透過 `~/.hermes/.env` 來進行 Gateway 設定 (在 Docker 中則對應至掛載的目錄設定)。
+常用的其他變數：
 
-### 方法 A：互動式設定 (官方推薦)
+| 變數 | 用途 |
+| --- | --- |
+| `DISCORD_ALLOWED_ROLES` | 角色 ID 白名單，有其中任一角色的成員都能用 |
+| `DISCORD_ALLOWED_CHANNELS` | 只在這些頻道回應 |
+| `DISCORD_IGNORED_CHANNELS` | 這些頻道一律不回應 |
+| `DISCORD_HOME_CHANNEL` | 主動訊息（例如 cron 結果）送到的頻道 ID |
+| `DISCORD_REQUIRE_MENTION` | 伺服器頻道是否要 `@bot` 才回，預設 `true` |
+| `DISCORD_FREE_RESPONSE_CHANNELS` | 不用 `@bot` 就回的頻道 ID |
 
-執行官方的設定腳本，按照終端機提示選擇 Discord，並貼上 Token 與 User ID。
+沒設白名單、也沒設 `DISCORD_ALLOW_ALL_USERS=true` 時，bot 會上線但不回任何人。
 
-- **原生 Local 環境**：
-  直接在終端機輸入以下指令：
+也可以用互動精靈寫入（`-p` 指定 profile，default profile 省略）：
 
-  ```bash
-  hermes gateway setup
-  ```
+```bash
+./hermes-run.sh cli -p <profile> gateway setup
+```
 
-- **Docker 環境**：
-  在 `docker-compose.yml` 所在目錄執行，透過 Compose 啟動一次性互動容器（會走 entrypoint 自動切換到 `hermes` 使用者並啟用 venv，設定會寫入掛載的資料卷）：
+### `config.yaml`
 
-  ```bash
-  docker compose run --rm hermes gateway setup
-  ```
+行為設定也可以放在 profile 的 `config.yaml` 頂層 `discord:` 區塊，鍵名是去掉 `DISCORD_` 前綴的小寫；兩邊都設時以 `.env` 為準。[`config.example.yaml`](../../config.example.yaml) 用的是：
 
-  > 💡 **提示**：設定完成後，請重新啟動主容器以套用變更：`docker compose restart hermes`。
+```yaml
+discord:
+  require_mention: true
+  auto_thread: false
+  thread_require_mention: false
+  reactions: true
+```
 
-### 方法 B：手動配置 (.env 與 config.yaml)
+同一個頻道裡不同使用者預設各自一個 session；要讓整個頻道共用上下文，把頂層的 `group_sessions_per_user` 設為 `false`。
 
-Hermes 支援兩種手動設定檔，皆存放於主機的掛載目錄中 (預設為 `~/.hermes/`)。您可以依據屬性分開設定：
+### Home channel
 
-1. **修改 `.env` 檔案 (推薦存放 Token 機密)**：
-    直接編輯 `.env`，加入以下基本權限設定：
+在想當 home 的頻道輸入 `/sethome`，或在 `.env` 設 `DISCORD_HOME_CHANNEL`。
+
+## 套用與確認
+
+1. 重啟 gateway 讓新的 `.env` 生效。這會中斷該 home 所有 profile 正在跑的 cron 與對話：
 
     ```bash
-    # 必填項目
-    DISCORD_BOT_TOKEN="你的_BOT_TOKEN"
-    DISCORD_ALLOWED_USERS="你的_USER_ID"
-    # 若允許多人使用，可用逗號分隔：DISCORD_ALLOWED_USERS="ID1,ID2"
+    ./hermes-run.sh cli gateway restart
     ```
 
-2. **修改 `config.yaml` (推薦存放結構化行為設定)**：
-    您可以將專案內的 `config.example` 複製一份為 `config.yaml`，官方文件指出 `config.yaml` 內的 `discord` 區塊參數完全對應 `.env` 變數 (例如 `free_response_channels` 就是 `DISCORD_FREE_RESPONSE_CHANNELS`)，非常適合用來管理行為邏輯。
+2. 幾秒內 bot 應該在 Discord 顯示上線。私訊它，或在頻道 `@` 它，確認有回覆。
+3. 輸入 `/whoami` 看自己的權限等級。
+4. bot 沒上線時看 log（`./hermes-run.sh logs`，或 data dir 的 `logs/gateway.log`）。Discord 拒絕 privileged intents 時，log 會說明要開哪個 intent。
 
-    ```yaml
-    discord:
-      require_mention: true
-      
-      # 支援原生 YAML List 格式，方便管理多個頻道
-      free_response_channels: 
-        - "1498601986994733066"  # 頻道A
-        - "1498601986994733067"  # 頻道B
-      
-      ignored_channels:
-        - "987654321098765432"   # 忽略頻道
-    ```
+其他 home 的容器在指令加 `-a <home>`，見 [CLI 指令](../cli.md)。
 
-    > 💡 **權重規則**：如果同一個設定同時存在於 `.env` 跟 `config.yaml` 中，系統永遠會以 `.env` 的設定為主！
-
-3. **啟動或重啟 Hermes 服務**：
-    存檔後，讓系統重新載入設定。
-
-    - **原生 Local 環境**：
-
-      ```bash
-      hermes gateway
-      ```
-
-    - **Docker 環境**：
-
-      ```bash
-      docker compose restart hermes
-      ```
-
-## 3. 第三階段：進階 - 頻道行為與 Session 模型
-
-Hermes 在 Discord 中的運作並非簡單的 Webhook，而是完整的 Gateway，因此有其特殊的對話邏輯：
-
-1. **觸發回覆邏輯 (Mention vs Free Response)**：
-
-    - **預設狀態**：機器人只會在被 `@標註` 時才會回覆 (`DISCORD_REQUIRE_MENTION=true`)。
-    - **免標註頻道**：若希望機器人在特定頻道能直接回覆任何人，可在 `.env` (或 `config.yaml`) 中設定 `DISCORD_FREE_RESPONSE_CHANNELS="頻道ID"`。
-      > 💡 **多頻道設定**：若在 `.env`，請用逗號分隔如 `"ID1,ID2"`。若在 `config.yaml` 中設定，支援原生的 YAML List 格式 (例如 `- "ID1"` 換行 `- "ID2"`)。
-
-2. **對話隔離 (Session Model)**：
-    這是 Hermes 的一大特色。預設情況下 (`group_sessions_per_user: true`)：
-
-    - 每一個私訊 (DM) 都是獨立的 Session。
-    - **在同一個公開頻道內，不同使用者的對話是各自獨立的**。Alice 跟 Bob 即使在同一個 `#research` 頻道跟機器人講話，機器人也會將他們視為兩個不相干的對話。
-    - 若希望整個頻道「共用」同一個上下文，需要在 `config.yaml` 中將 `group_sessions_per_user` 設為 `false`。
-
-3. **斜線指令 (Skills 自動對接)**：
-    Hermes 會將內部安裝的 Skills 自動註冊為 Discord 的斜線指令 (`/`)。在頻道中輸入 `/`，Discord 的自動選單就會列出 Hermes 目前支援的工具與指令。
-
-4. **設定 Home Channel (主頻道)**：
-    Home Channel 是 Hermes 用來發送背景任務結果 (例如 Cron Jobs 執行結果) 或跨平台通知的預設地點。若未設定，啟動時會在終端機或日誌看到警告 (`No home channel is set for Discord...`)。
-
-    - **方法一 (使用斜線指令)**：直接在你想指定的伺服器頻道或私訊中，輸入斜線指令 `/sethome`。
-      > 💡 **運作機制**：透過指令設定的結果，Hermes 系統底層會自動將變數存入 `config.yaml` 中，不須重啟即刻生效。
-    - **方法二 (手動配置)**：直接編輯主機上的 `.env` 檔案，加入以下設定：
-
-      ```bash
-      DISCORD_HOME_CHANNEL="你的頻道ID"
-      DISCORD_HOME_CHANNEL_NAME="#bot-updates" # 選填
-      ```
-
-      > 💡 **權重規則**：根據官方文件，`.env` 的變數優先級**大於** `config.yaml`。如果您同時在 `.env` 寫死了 ID，那麼不論你在 Discord 內如何使用 `/sethome`，系統都會強制以 `.env` 為主。
-
-## 4. 底層運作邏輯
-
-與一般的 Discord Bot 或 OpenClaw 相比，Hermes 的 Gateway 會經過完整的授權管道：
-
-1. 驗證權限 (`DISCORD_ALLOWED_USERS`)。
-2. 檢查觸發條件 (是否被標註、是否在免標註頻道)。
-3. 查找對應的 Session。
-4. 執行 Hermes Agent 核心功能 (Tools, Memory 等)。
-5. 將結果送回 Discord。
-
-這樣確保了 Agent 不論在哪個通訊平台，都保有一致的安全性與記憶管理機制。
+[official]: https://hermes-agent.nousresearch.com/docs/user-guide/messaging/discord

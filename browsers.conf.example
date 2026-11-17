@@ -4,13 +4,11 @@
 #   - port:          Chrome 的 --remote-debugging-port 值
 #   - profile_name:  對應 ~/.hermes/browser/<name>/user-data/ 資料目錄
 #                    （預設為全新 profile，第一次啟動需手動登入一次）
-#                    若要沿用 OpenClaw 既有 profile（保留登入狀態），
-#                    把 start-browsers.sh 的 DATA_DIR 改成 ~/.openclaw/browser
 #
 # 註解（# 開頭）與空行會被忽略。
 # 可用 BROWSERS_CONFIG=/path/to/other.conf 環境變數覆寫此檔位置。
 
-# 第一個 = main agent（cdp_url 預設指向）；其餘給 sub-agent 在 runtime 切換。
+# 每個 port 一個 Chrome 帳號，對應一個 Hermes profile 的 browser.cdp_url（見 docs/browser.md）。
 9223:main
 9224:helper
 9225:assistant

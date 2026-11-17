@@ -6,7 +6,13 @@ cron 在背景觸發的瀏覽器任務半路停住，沒有明確錯誤；`agent
 
 ## 原因
 
-cron 觸發時，host 上的 Chrome 視窗常被遮住、縮到最小，或螢幕已鎖。macOS 會凍結看不見的視窗的 renderer 與 JS 計時器，經 CDP 下的操作因此逾時。
+cron 觸發時，host 上常出現下列情況：
+
+- Chrome 視窗被遮住
+- Chrome 視窗縮到最小
+- 螢幕已鎖
+
+macOS 會凍結看不見的視窗的 renderer 與 JS 計時器，經 CDP 下的操作因此逾時。
 
 ## 解法
 

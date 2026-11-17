@@ -1,4 +1,4 @@
-# patches/
+# 上游原始碼修補
 
 對上游 image 原始碼的修改，以 unified diff 維護，build 時由 [`apply.py`](apply.py) 套用到容器內的 `/opt/hermes`。`apply.py` 是冪等的，已套用的會跳過，context 不符時讓 build 失敗。
 
@@ -10,7 +10,7 @@
 
 ## 對應的版本
 
-patch 對應 `compose.env` 的 `HERMES_VERSION`。換版本後套不上時，照[重算](#重算或新增-patch)的步驟對新版本重做。
+patch 對應 `config/compose.env` 的 `HERMES_VERSION`。換版本後套不上時，照[重算](#重算或新增-patch)的步驟對新版本重做。
 
 ## 現有 patch
 
@@ -39,7 +39,7 @@ DingTalk SDK 不是 patch，而是 Dockerfile 在 build 時從上游 lockfile �
 pristine 來源一律取自 pin 版本的 image，不從 GitHub 抓，否則 diff 會混入無關的版本差異：
 
 ```bash
-TAG="$(sed -n 's/^HERMES_VERSION=//p' compose.env)"
+TAG="$(sed -n 's/^HERMES_VERSION=//p' config/compose.env)"
 P=plugins/platforms/dingtalk/adapter.py    # 相對 /opt/hermes 的路徑
 mkdir -p "patches/.src/a/$(dirname "$P")" "patches/.src/b/$(dirname "$P")"
 docker run --rm --entrypoint cat "nousresearch/hermes-agent:${TAG}" "/opt/hermes/$P" > "patches/.src/a/$P"

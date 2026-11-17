@@ -2,3 +2,4 @@ patches/.src/
 .git
 .gstack
 .ruff_cache
+.env

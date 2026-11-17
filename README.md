@@ -6,12 +6,50 @@
 
 用 Docker Compose 跑 NousResearch 的 [Hermes Agent](https://hermes-agent.nousresearch.com/docs/)。
 
-以上游 image `nousresearch/hermes-agent:<版本>` 為基底，建出自己的 image（名稱由 `compose.env` 的 `HERMES_IMAGE` 決定），多加了：
+以上游 image `nousresearch/hermes-agent:<版本>` 為基底，建出自己的 image（名稱由 `config/compose.env` 的 `HERMES_IMAGE` 決定），多加了：
 
 - DingTalk SDK（從上游 lockfile 的 `dingtalk` extra 安裝）
 - `agent-browser` CLI，讓 skill 能指定要接哪個 host Chrome
-- 自訂 skill 用的 Python 套件（[`requirements.txt`](requirements.txt)）
+- 自訂 skill 用的 Python 套件（[`docker/requirements.txt`](docker/requirements.txt)）
 - [`patches/`](patches/README.md) 裡對上游原始碼的修補
+
+## 支援的平台
+
+| 平台 | 核心（gateway、dashboard、平台、cron） | 接 host 上的 Chrome |
+| --- | --- | --- |
+| macOS（Docker Desktop） | 可用 | 可用 |
+| Windows（Docker Desktop + Git Bash） | 未實測 | 未實測 |
+| Linux | 未實測 | 尚未支援，見[瀏覽器](docs/browser.md#linux) |
+
+平台相關的值（Chrome 路徑等）會自動偵測，要改的話寫在 `config/platforms/<平台>.env`。
+
+## 快速開始
+
+需要：
+
+- Docker 與 Compose v2
+- bash
+- 一組 LLM provider 的 API key
+
+每一步的說明見[第一次部署](docs/setup.md)。
+
+```bash
+# 1. image 設定，然後建 image
+cp -n config/compose.env.example config/compose.env
+./hermes-build.sh
+
+# 2. 準備 data dir，填入 API key 與 dashboard 帳密
+mkdir -p ~/.hermes
+cp -n .env.example ~/.hermes/.env
+cp -n config.example.yaml ~/.hermes/config.yaml
+# 編輯 ~/.hermes/.env
+
+# 3. 啟動並檢查
+./hermes-run.sh up
+./hermes-run.sh cli doctor
+```
+
+`./hermes-run.sh up` 不會 build；image 不存在時直接報錯。之後所有 `hermes` 指令都透過 `./hermes-run.sh cli <args>` 在容器裡執行，見 [CLI 指令](docs/cli.md)。
 
 ## 架構
 
@@ -29,38 +67,6 @@
 
 怎麼選、怎麼設定見 [Agent、Home 與 Profile](docs/agents-and-profiles.md)。
 
-## 支援的平台
-
-| 平台 | 核心（gateway、dashboard、平台、cron） | 接 host 上的 Chrome |
-| --- | --- | --- |
-| macOS（Docker Desktop） | 可用 | 可用 |
-| Windows（Docker Desktop + Git Bash） | 未實測 | 未實測 |
-| Linux | 未實測 | 尚未支援，見[瀏覽器](docs/browser.md#linux) |
-
-平台相關的值（Chrome 路徑等）會自動偵測，要改的話寫在 `platforms/<平台>.env`。
-
-## 快速開始
-
-需要 Docker 與 Compose v2、bash，和一組 LLM provider 的 API key。每一步的說明見[第一次部署](docs/setup.md)。
-
-```bash
-# 1. image 設定，然後建 image
-cp -n compose.env.example compose.env
-./hermes-build.sh
-
-# 2. 準備 data dir，填入 API key 與 dashboard 帳密
-mkdir -p ~/.hermes
-cp -n .env.example ~/.hermes/.env
-cp -n config.example.yaml ~/.hermes/config.yaml
-# 編輯 ~/.hermes/.env
-
-# 3. 啟動並檢查
-./hermes-run.sh up
-./hermes-run.sh cli doctor
-```
-
-`./hermes-run.sh up` 不會 build；image 不存在時直接報錯。之後所有 `hermes` 指令都透過 `./hermes-run.sh cli <args>` 在容器裡執行，見 [CLI 指令](docs/cli.md)。
-
 ## 文件
 
 | 想做什麼 | 看這份 |
@@ -73,6 +79,7 @@ cp -n config.example.yaml ~/.hermes/config.yaml
 | 換 model、設 fallback | [模型設定](docs/models.md) |
 | 接 Discord、DingTalk | [Discord](docs/platforms/discord.md)、[DingTalk](docs/platforms/dingtalk.md) |
 | 修改上游原始碼、跑測試、看本專案的 skill | [patches/](patches/README.md)、[tests/](tests/README.md)、[skills/](skills/README.md) |
+| 找 host 上的設定檔 | [config/](config/README.md) |
 
 ### 疑難排解
 

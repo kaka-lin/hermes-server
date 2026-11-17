@@ -13,7 +13,12 @@
 nohup bash -c 'sleep $((RANDOM % 7200)); …' >/dev/null 2>&1 &
 ```
 
-觸發腳本立刻結束，gateway 把這次 job 記為完成。睡著的進程已脫離 gateway 管理：暫停 cron 停不了它、容器重啟它就消失、結果不會送出、失敗也沒人通知。
+觸發腳本立刻結束，gateway 把這次 job 記為完成。睡著的進程已脫離 gateway 管理：
+
+- 暫停 cron 停不了它
+- 容器重啟它就消失
+- 結果不會送出
+- 失敗也沒人通知
 
 改成同步睡也不行：agent 用 terminal 跑腳本受 `terminal.timeout`（預設 180 秒）限制，睡太久會被砍。
 

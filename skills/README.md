@@ -1,4 +1,4 @@
-# skills/
+# 本專案的 Skill
 
 綁定這套 Hermes 部署的 skill。這裡的 skill 通常有這些特徵：
 

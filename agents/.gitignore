@@ -1,3 +1,0 @@
-# 其他 home 的 Compose 設定（機器專屬的路徑與 port）；只追蹤範本
-*.conf
-!*.conf.example

@@ -13,7 +13,7 @@ Mac 上的 VPN 開關切換後，host 網路正常，容器對外連線卻全部
 
 [`docker-compose.yml`](../../docker-compose.yml) 已經處理第一層，並讓第二層看得見：
 
-- `dns`：容器的 DNS 直接轉給公共 DNS（預設 `1.1.1.1`、`8.8.8.8`），不經 Mac。網路只能用內部 DNS 時，在 `compose.env` 改 `HERMES_DNS_PRIMARY`、`HERMES_DNS_SECONDARY`。
+- `dns`：容器的 DNS 直接轉給公共 DNS（預設 `1.1.1.1`、`8.8.8.8`），不經 Mac。網路只能用內部 DNS 時，在 `config/compose.env` 改 `HERMES_DNS_PRIMARY`、`HERMES_DNS_SECONDARY`。
 - `healthcheck`：每 30 秒從容器連 `HERMES_HEALTHCHECK_URL`（預設 `https://discord.com`），連續 3 次失敗標為 `unhealthy`。
 
 `restart: unless-stopped` 不會因為 `unhealthy` 自動重啟。卡住時手動重啟：

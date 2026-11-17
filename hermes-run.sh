@@ -4,7 +4,7 @@
 #
 # 兩層隔離可以疊著用（詳見 docs/agents-and-profiles.md）：
 #   - home：一個 data dir 一個容器。主 home 是 ~/.hermes（容器 hermes）；
-#           其他 home 由 `new <名稱>` 建立，設定在 agents/<名稱>.conf。
+#           其他 home 由 `new <名稱>` 建立，設定在 config/agents/<名稱>.conf。
 #   - profile：同一個 home 裡用官方 CLI 建（`cli profile create <名稱>`），
 #              由那個容器的 gateway 一起帶起來。
 #
@@ -13,18 +13,18 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-AGENTS_DIR="$SCRIPT_DIR/agents"
-COMPOSE_ENV_FILE="$SCRIPT_DIR/compose.env"
-[[ -f "$SCRIPT_DIR/versions.env" && ! -f "$COMPOSE_ENV_FILE" ]] &&
-  echo "warn: versions.env 已改名為 compose.env，請執行 mv versions.env compose.env（目前用預設值）" >&2
-# shellcheck source=platforms/detect.sh
-. "$SCRIPT_DIR/platforms/detect.sh"
+AGENTS_DIR="$SCRIPT_DIR/config/agents"
+COMPOSE_ENV_FILE="$SCRIPT_DIR/config/compose.env"
+BROWSERS_CONF="$SCRIPT_DIR/config/browsers.conf"
+# shellcheck source=lib/detect-platform.sh
+. "$SCRIPT_DIR/lib/detect-platform.sh"
 COMPOSE=(docker compose --project-directory "$SCRIPT_DIR" -f "$SCRIPT_DIR/docker-compose.yml")
-# 後面的 env-file 蓋過前面的；shell 的環境變數（含 agents/<名稱>.conf）又蓋過兩者。
+# 後面的 env-file 蓋過前面的；shell 的環境變數（含 config/agents/<名稱>.conf）又蓋過兩者。
 [[ -f "$COMPOSE_ENV_FILE" ]] && COMPOSE+=(--env-file "$COMPOSE_ENV_FILE")
 [[ -f "$PLATFORM_ENV" ]] && COMPOSE+=(--env-file "$PLATFORM_ENV")
-# new 自動挑 port 的起點；主 home 用 compose 預設的 8642 / 9119。
-GATEWAY_PORT_BASE=8643
+# new 自動挑 port 的起點；主 home 用 compose 預設的 8642 / 9119 / 8644。
+# gateway 與 webhook 共用 8650 起跳，避開官方平台預設的 8642-8646。
+GATEWAY_PORT_BASE=8650
 DASHBOARD_PORT_BASE=9120
 
 die() {
@@ -40,7 +40,7 @@ agent_names() {
   done
 }
 
-# 把 agents/<名稱>.conf 的變數 export 進目前的 shell；shell env 蓋過 compose.env，
+# 把 config/agents/<名稱>.conf 的變數 export 進目前的 shell；shell env 蓋過 compose.env，
 # 所以 conf 裡的值就是 Compose 會用的值。只在 subshell 裡呼叫，變數才不會漏到下一個 home。
 load_agent() {
   local conf="$AGENTS_DIR/$1.conf"
@@ -96,6 +96,12 @@ dashboard_port() {
   echo "${port:-9119}"
 }
 
+webhook_port() {
+  local port
+  port="$(compose_env HERMES_WEBHOOK_PORT)"
+  echo "${port:-8644}"
+}
+
 # 把 repo 的容器內 runtime 腳本同步進 data dir（掛載成容器的 /opt/data）。
 # cdp_proxy.py 讀 scripts/host/browsers.conf 決定要轉發的 port。
 # 不加 --delete：data dir 的 scripts/ 也放 agent 自己生成的腳本，不能清掉。
@@ -105,11 +111,11 @@ sync_runtime() {
   mkdir -p "$dir/scripts/host"
   rsync -a --exclude=__pycache__ "$SCRIPT_DIR/scripts/" "$dir/scripts/"
   echo "    runtime  : scripts/ → $dir/scripts/"
-  if [[ -f "$SCRIPT_DIR/browsers.conf" ]]; then
-    cp "$SCRIPT_DIR/browsers.conf" "$dir/scripts/host/browsers.conf"
-    echo "    runtime  : browsers.conf → $dir/scripts/host/browsers.conf"
+  if [[ -f "$BROWSERS_CONF" ]]; then
+    cp "$BROWSERS_CONF" "$dir/scripts/host/browsers.conf"
+    echo "    runtime  : config/browsers.conf → $dir/scripts/host/browsers.conf"
   else
-    echo "    warn     : 找不到 browsers.conf，cdp_proxy 沒有 port 可轉發（不影響 gateway 啟動）"
+    echo "    warn     : 找不到 config/browsers.conf，cdp_proxy 沒有 port 可轉發（不影響 gateway 啟動）"
   fi
 }
 
@@ -177,16 +183,17 @@ port_busy() {
   lsof -iTCP:"$1" -sTCP:LISTEN -t >/dev/null 2>&1
 }
 
-# 已被佔用或保留的 port：主 home 的兩個、每個 home conf 裡的兩個、browsers.conf 的 CDP port。
+# 已被佔用或保留的 port：主 home 的三個、每個 home conf 裡的三個、config/browsers.conf 的 CDP port。
 used_ports() {
   local f
   gateway_port
   dashboard_port
+  webhook_port
   for f in "$AGENTS_DIR"/*.conf; do
     [[ -e "$f" ]] || continue
-    sed -nE 's/^HERMES_(GATEWAY|DASHBOARD)_PORT=[[:space:]]*([0-9]+).*/\2/p' "$f"
+    sed -nE 's/^HERMES_(GATEWAY|DASHBOARD|WEBHOOK)_PORT=[[:space:]]*([0-9]+).*/\2/p' "$f"
   done
-  [[ -f "$SCRIPT_DIR/browsers.conf" ]] && sed -n 's/^[[:space:]]*\([0-9][0-9]*\):.*/\1/p' "$SCRIPT_DIR/browsers.conf"
+  [[ -f "$BROWSERS_CONF" ]] && sed -n 's/^[[:space:]]*\([0-9][0-9]*\):.*/\1/p' "$BROWSERS_CONF"
   return 0
 }
 
@@ -214,16 +221,20 @@ cmd_new() {
   [[ -d "$main_dir" ]] || die "主 home 不存在：${main_dir}（無法 clone）"
   [[ "hermes-$name" == "$(container_name)" ]] && die "容器名稱 hermes-$name 已經是主 home 在用的，換個名稱"
 
-  local used gwport dashport
+  local used gwport dashport hookport
   used="$(used_ports)"
   gwport="$(pick_free_port "$GATEWAY_PORT_BASE" "$used")"
-  dashport="$(pick_free_port "$DASHBOARD_PORT_BASE" "$(printf '%s\n%s' "$used" "$gwport")")"
+  used="$(printf '%s\n%s' "$used" "$gwport")"
+  dashport="$(pick_free_port "$DASHBOARD_PORT_BASE" "$used")"
+  used="$(printf '%s\n%s' "$used" "$dashport")"
+  hookport="$(pick_free_port "$GATEWAY_PORT_BASE" "$used")"
 
   echo "==> 建立 home '$name'"
   echo "    data dir : $dir"
   echo "    容器     : hermes-$name"
   echo "    gateway  : $gwport"
   echo "    dashboard: $dashport"
+  echo "    webhook  : $hookport"
 
   # 只 clone 基礎設定；SOUL.md 不複製，新 home 的身份要自己寫，其餘第一次啟動時由 entrypoint 補齊。
   # 已存在的不覆蓋：--force 重跑時，那個 home 自己填好的 token 不能被主 home 的蓋掉。
@@ -246,10 +257,11 @@ HERMES_DATA_DIR=\${HOME}/.hermes-$name
 HERMES_CONTAINER_NAME=hermes-$name
 HERMES_GATEWAY_PORT=$gwport
 HERMES_DASHBOARD_PORT=$dashport
-# 這個 home 要跑的 image 版本；不寫就用 compose.env 的 HERMES_VERSION。要先 ./hermes-build.sh <版本>。
+HERMES_WEBHOOK_PORT=$hookport
+# 這個 home 要跑的 image 版本；不寫就用 config/compose.env 的 HERMES_VERSION。要先 ./hermes-build.sh <版本>。
 # HERMES_VERSION=v0.23.1
 EOF
-  echo "    寫入     : agents/$name.conf"
+  echo "    寫入     : config/agents/$name.conf"
 
   cat <<EOF
 
@@ -263,7 +275,7 @@ EOF
 EOF
 }
 
-# 一行一個 home：名稱、容器狀態、gateway / dashboard port、profile
+# 一行一個 home：名稱、容器狀態、gateway / dashboard / webhook port、profile
 ls_line() (
   local agent="$1" ctr st profiles
   [[ -z "$agent" ]] || load_agent "$agent"
@@ -271,13 +283,13 @@ ls_line() (
   st="$(docker ps -a --filter "name=^${ctr}$" --format '{{.Status}}' 2>/dev/null | head -n1)"
   # 還沒建過 profile 的 home 沒有 profiles/；pipefail 下 ls 失敗會讓這行中斷。
   profiles="$(ls "$(data_dir)/profiles" 2>/dev/null | tr '\n' ' ' || true)"
-  printf '  %-14s %-16s %-24s %-7s %-7s %s\n' "${agent:-hermes}" "$ctr" "${st:-(none)}" \
-    "$(gateway_port)" "$(dashboard_port)" "${profiles:--}"
+  printf '  %-14s %-16s %-24s %-7s %-7s %-7s %s\n' "${agent:-hermes}" "$ctr" "${st:-(none)}" \
+    "$(gateway_port)" "$(dashboard_port)" "$(webhook_port)" "${profiles:--}"
 )
 
 cmd_ls() {
   local a
-  printf '  %-14s %-16s %-24s %-7s %-7s %s\n' HOME CONTAINER STATUS GATEWAY DASH PROFILES
+  printf '  %-14s %-16s %-24s %-7s %-7s %-7s %s\n' HOME CONTAINER STATUS GATEWAY DASH WEBHOOK PROFILES
   ls_line ""
   for a in $(agent_names); do
     ls_line "$a"
@@ -298,10 +310,10 @@ Usage:
                                   $0 cli profile create <名稱> --clone
                                   $0 cli -a kaka gateway restart
                                   $0 cli doctor
-  $0 new <名稱> [--force]         建立新 home：~/.hermes-<名稱>、容器 hermes-<名稱>、agents/<名稱>.conf
+  $0 new <名稱> [--force]         建立新 home：~/.hermes-<名稱>、容器 hermes-<名稱>、config/agents/<名稱>.conf
   $0 ls                           列出所有 home、port、狀態與 profile
 
-  -a, --agent <名稱>  操作 agents/<名稱>.conf 的 home
+  -a, --agent <名稱>  操作 config/agents/<名稱>.conf 的 home
   --all               up / down / restart 套用到所有 home
 
 詳見: docs/agents-and-profiles.md

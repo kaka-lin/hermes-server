@@ -9,7 +9,7 @@ or rewrites payloads.
 
 Ports come from ``scripts/host/browsers.conf`` inside the data dir (relative to
 this script). ``hermes-run.sh up`` copies it there from the repo-root
-``browsers.conf`` that start-browsers.sh reads, so the host launcher and the
+``config/browsers.conf`` that start-browsers.sh reads, so the host launcher and the
 in-container forwarder share one port list. Optional CLI arguments override the
 config file for ad-hoc one-off forwards.
 
@@ -26,7 +26,7 @@ import time
 from pathlib import Path
 
 # Docker Desktop resolves host.docker.internal to the host; docker-compose.yml maps it to
-# host-gateway so the name also exists on Linux. CDP_HOST comes from platforms/<platform>.env.
+# host-gateway so the name also exists on Linux. CDP_HOST comes from config/platforms/<platform>.env.
 HOST = os.environ.get("CDP_HOST") or "host.docker.internal"
 
 DEFAULT_CONFIG = Path(__file__).resolve().parent / "host" / "browsers.conf"

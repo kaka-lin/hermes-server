@@ -1,21 +1,18 @@
---- a/plugins/platforms/dingtalk/adapter.py	2026-09-15 10:23:12
-+++ b/plugins/platforms/dingtalk/adapter.py	2026-09-15 10:27:31
-@@ -122,6 +122,40 @@
+--- a/plugins/platforms/dingtalk/adapter.py	2026-11-10 15:41:38
++++ b/plugins/platforms/dingtalk/adapter.py	2026-11-10 15:42:27
+@@ -55,7 +55,7 @@
+     apply_yaml_bridge as _apply_yaml_bridge, decode_json_list_literal as _decode_json_list_literal,
+     extra_or_secret as _extra_or_secret, get_scoped_secret as _get_scoped_secret, send_error
+ )
+-from gateway.platforms.send_targets import StandaloneSendPolicy
++from gateway.platforms.send_targets import StandaloneSendPolicy, parse_nonempty
+ from plugins.platforms.dingtalk.inbound import collect_download_codes, extract_media, extract_text
+ 
+ 
+@@ -183,6 +183,28 @@
      # profile's app id under multiplex, and pairing it with a secondary's secret authenticates as the wrong app.
      return (extra.get("client_id") or _get_scoped_secret("DINGTALK_CLIENT_ID", ""),
              extra.get("client_secret") or _get_scoped_secret("DINGTALK_CLIENT_SECRET", ""))
-+
-+
-+def _parse_target_ref(target_ref: str):
-+    """Every non-empty target is adapter-native and explicit (``cid...`` groups, staff ids alike).
-+
-+    Without this parser a ``dingtalk:cidXXXX==`` target is not recognised as explicit, so the send falls
-+    back to ``DINGTALK_HOME_CHANNEL`` and silently lands in the wrong group. Registering a parser also
-+    switches the plugin to strict resolution, so accepting everything (like wecom/ntfy) keeps non-group
-+    ids reaching the adapter as before.
-+    """
-+    ref = (target_ref or "").strip()
-+    return (ref, None) if ref else None
 +
 +
 +async def _robot_api_send(client: "httpx.AsyncClient", access_token: str, robot_code: str, open_conversation_id: str, message: str) -> bool:
@@ -41,7 +38,7 @@
  
  
  def check_dingtalk_requirements() -> bool:
-@@ -381,11 +415,15 @@
+@@ -505,11 +527,14 @@
          metadata = metadata or {}
          logger.debug("[%s] send() chat_id=%s card_enabled=%s", self.name, chat_id, bool(self._card_template_id and self._card_sdk))
          session_webhook = metadata.get("session_webhook") or (self._get_valid_webhook(chat_id) or ("",))[0]
@@ -49,8 +46,7 @@
 +            return SendResult(success=False, error="HTTP client not initialized")
          if not session_webhook:
 +            if str(chat_id).startswith("cid"):
-+                # ponytail: no webhook fallback here (none exists without a session); a report over the
-+                # API's 15000-byte msgParam cap fails outright — chunk on the caller side if that bites.
++                # shortcut: a report over the API's 15000-byte msgParam cap fails outright; chunk on the caller side if that bites.
 +                return await self._send_via_robot_api(chat_id, content)
              logger.warning("[%s] No valid session_webhook for chat_id=%s", self.name, chat_id)
              return SendResult(success=False, error="No valid session_webhook available. Reply must follow an incoming message.")
@@ -59,10 +55,11 @@
          current_message = self._message_contexts.get(chat_id)
          # ``reply_to`` is only set by base.py:_send_with_retry for the FINAL reply to an inbound message;
          # tool-progress, commentary and stream first-sends leave it None. It decides (1) finalize-on-create
-@@ -417,6 +455,22 @@
+@@ -540,6 +565,22 @@
+         except Exception as e:
              logger.error("[%s] Send error: %s", self.name, e)
              return SendResult(success=False, error=str(e))
- 
++
 +    async def _send_via_robot_api(self, chat_id: str, content: str) -> SendResult:
 +        """Group delivery when no session webhook is known (cron output, explicit ``dingtalk:cid...`` targets)."""
 +        token = await self._get_access_token()
@@ -78,11 +75,10 @@
 +            logger.info("[%s] Delivered via robot API to %s", self.name, chat_id)
 +            return SendResult(success=True, message_id=uuid.uuid4().hex[:12])
 +        return SendResult(success=False, error="Robot API returned no processQueryKey")
-+
+ 
      async def send_typing(self, chat_id: str, metadata=None) -> None:
          """DingTalk does not support typing indicators."""
- 
-@@ -628,19 +682,36 @@
+@@ -754,19 +795,36 @@
          import httpx
      except ImportError:
          return send_error("httpx not installed")
@@ -119,15 +115,15 @@
              return send_error(f"DingTalk API error: {data.get('errmsg', 'unknown')}")
 -        return {"success": True, "platform": "dingtalk", "chat_id": chat_id}
 +        return {"success": True, "platform": "dingtalk", "chat_id": chat_id, "method": "custom_webhook"}
-     except Exception as e:
+     except Exception as e:  # httpx reads HTTPS_PROXY itself: the text may echo it
          try:  # send_message_tool._error redacts access_token from webhook URLs (lazy import avoids a circular)
              from tools.send_message_tool import _error as _redact_error
-@@ -729,7 +800,7 @@
+@@ -859,7 +917,7 @@
+         ensure_deps_fn=ensure_dingtalk_deps, is_connected=_is_connected, validate_config=_is_connected,
          required_env=["DINGTALK_CLIENT_ID", "DINGTALK_CLIENT_SECRET"], install_hint="pip install 'dingtalk-stream>=0.20' httpx",
-         setup_fn=interactive_setup, apply_yaml_config_fn=_apply_yaml_config, allowed_users_env="DINGTALK_ALLOWED_USERS",
-         allow_all_env="DINGTALK_ALLOW_ALL_USERS", cron_deliver_env_var="DINGTALK_HOME_CHANNEL",
+         setup_fn=interactive_setup, apply_yaml_config_fn=_apply_yaml_config, cron_deliver_env_var="DINGTALK_HOME_CHANNEL",
 -        standalone_sender_fn=_standalone_send, emoji="🐳", allow_update_command=True,
-+        standalone_sender_fn=_standalone_send, parse_target_ref_fn=_parse_target_ref, emoji="🐳", allow_update_command=True,
-     )
- 
- 
++        standalone_sender_fn=_standalone_send, target_ref_syntax_fn=parse_nonempty, emoji="🐳", allow_update_command=True,
+         display_tier="low",
+         env_overrides=gateway_env.ENV_OVERRIDES,
+         env_enable_credentials=gateway_env.ENV_ENABLE_CREDENTIALS, **gateway_env.AUTHZ,

@@ -1,19 +1,16 @@
-# 背景 cron 啟動的 Chrome 被遮蔽，CDP 卡死直到撞 max_turns
+# cron 的瀏覽器任務跑到一半停住
 
 ## 症狀
 
-- cron 在背景觸發的瀏覽器自動化任務跑到一半停滯，最後無聲無息結束，沒有完成、也沒有明確錯誤。
-- `agent.log` 顯示工具呼叫一路逾時重試，最後撞到 `agent.max_turns: 90` 被切斷。
+cron 在背景觸發的瀏覽器任務半路停住，沒有明確錯誤；`agent.log` 裡工具呼叫一路逾時、重試，直到撞上 `agent.max_turns`。
 
-## 根因
+## 原因
 
-cron 在背景觸發時，Chrome 視窗常被遮蔽、縮到最小，或螢幕已鎖。macOS 的 window occlusion 會凍結隱藏視窗的 renderer 與 JS 計時器，使自動化的 CDP 操作打滑甚至卡死。
+cron 觸發時，host 上的 Chrome 視窗常被遮住、縮到最小，或螢幕已鎖。macOS 會凍結看不見的視窗的 renderer 與 JS 計時器，經 CDP 下的操作因此逾時。
 
-agent 端看到的不是明確錯誤，而是一步步逾時、重試，把工具呼叫次數耗到上限 `agent.max_turns: 90`（`config.yaml`），整個 run 因此被切斷。表面像「跑到一半莫名死掉」，實際是瀏覽器被作業系統凍結。
+## 解法
 
-## 修正
-
-在 `start-browsers.sh` 的 `launch_chrome()` 啟動參數加上四個抗節流旗標，讓 Chrome 即使「看不見」也維持正常 renderer 與計時器（commit `9d56325`）：
+用 [`start-browsers.sh`](../../start-browsers.sh) 開 Chrome，它已帶這四個旗標，讓 Chrome 看不見時也照常執行：
 
 ```text
 --disable-background-timer-throttling
@@ -22,6 +19,10 @@ agent 端看到的不是明確錯誤，而是一步步逾時、重試，把工�
 --disable-features=CalculateNativeWinOcclusion
 ```
 
+用別的方式開 Chrome 時也要加。已經開著的 Chrome 要 `./start-browsers.sh restart` 才會套用。
+
+host Chrome 與 CDP 的整體設定見[瀏覽器](../browser.md)。
+
 ## 排查提示
 
-- run 半路死、`agent.log` 充滿 CDP 逾時重試並逼近 `max_turns` 時，先確認 Chrome 是否在背景被遮蔽，不要先當成腳本或網路問題。
+run 半路停住、`agent.log` 滿是 CDP 逾時重試時，先確認 Chrome 是不是在背景被遮住，再懷疑腳本或網路。

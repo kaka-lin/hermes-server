@@ -5,8 +5,6 @@
 # 為每個 profile 啟動一個獨立的 Chrome，各自綁定 CDP debug port，
 # user-data-dir 預設放在 Hermes 自己的 namespace（~/.hermes/browser），
 # 每個 profile 第一次啟動是全新空白 Chrome，需手動登入一次。
-# 若要沿用 OpenClaw 既有 profile（保留登入狀態），見下方 DATA_DIR 說明。
-# 此腳本可獨立取代 OpenClaw Node 的 Chrome lifecycle 功能。
 #
 # Usage:
 #   bash start-browsers.sh [start|stop|status|restart]
@@ -15,20 +13,36 @@
 # Profile 設定: browsers.conf（與本腳本同層）
 #   可用 BROWSERS_CONFIG=/path/to/other.conf 環境變數覆寫
 #
-# 參考: docs/guides/mac-chrome-cdp-guide.md
+# 參考: docs/browser.md
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG="${BROWSERS_CONFIG:-$SCRIPT_DIR/browsers.conf}"
 
-CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+# 平台設定 platforms/<平台>.env（可不建）；沒填的值在下面自動偵測。
+# shellcheck source=platforms/detect.sh
+. "$SCRIPT_DIR/platforms/detect.sh"
+if [[ -f "$PLATFORM_ENV" ]]; then
+  # 已 export 的值優先於檔案，和 Compose 的規則一致。
+  exported_chrome="${CHROME:-}" exported_data_dir="${BROWSER_DATA_DIR:-}"
+  set -a
+  # shellcheck disable=SC1090
+  . "$PLATFORM_ENV"
+  set +a
+  CHROME="${exported_chrome:-${CHROME:-}}"
+  BROWSER_DATA_DIR="${exported_data_dir:-${BROWSER_DATA_DIR:-}}"
+fi
+
+if [[ -z "${CHROME:-}" ]]; then
+  case "$HERMES_PLATFORM" in
+    macos) CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" ;;
+    linux) CHROME="$(command -v google-chrome || command -v chromium || true)" ;;
+  esac
+fi
 
 # Profile 的 user-data-dir 根目錄：$DATA_DIR/<profile>/user-data
-# 預設用 Hermes 自己的 namespace（全新 profile，第一次啟動需手動登入）。
-# 若要沿用 OpenClaw 既有 profile（保留 Threads/IG 登入狀態），改成：
-#   DATA_DIR="$HOME/.openclaw/browser"
-DATA_DIR="$HOME/.hermes/browser"
+DATA_DIR="${BROWSER_DATA_DIR:-$HOME/.hermes/browser}"
 
 # ---- Helpers ----
 
@@ -71,7 +85,7 @@ launch_chrome() {
   fi
 
   # 抗節流旗標：cron 在背景觸發時，Chrome 視窗常被遮蔽/縮小/螢幕鎖定，
-  # macOS occlusion 會凍結渲染與 JS 計時器，導致 CDP 操作打滑或卡死。
+  # 作業系統（例如 macOS 的 occlusion）會凍結渲染與 JS 計時器，導致 CDP 操作打滑或卡死。
   # 下列旗標讓 Chrome 即使「看不見」也維持正常 renderer 與 timer。
   "$CHROME" \
     --remote-debugging-port="$port" \
@@ -103,8 +117,9 @@ wait_for_listen() {
 # ---- Commands ----
 
 cmd_start() {
-  if [[ ! -x "$CHROME" ]]; then
-    echo "Error: Chrome 找不到 ($CHROME)" >&2
+  if [[ -z "${CHROME:-}" || ! -x "$CHROME" ]]; then
+    echo "Error: Chrome 找不到（${CHROME:-$HERMES_PLATFORM 上自動偵測找不到}）" >&2
+    echo "Hint: 在 $PLATFORM_ENV 設定 CHROME=<Chrome 執行檔路徑>（範本見 platforms/$HERMES_PLATFORM.env.example）" >&2
     exit 1
   fi
 

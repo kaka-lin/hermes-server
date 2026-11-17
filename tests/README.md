@@ -1,17 +1,14 @@
-# 測試
+# tests/
 
-這裡放 repo 的回歸測試；`patches/` 僅保留 build-time patch 與其 applier。
+只測這個 repo 自己寫的邏輯：
 
 ```bash
-python3 tests/test_patch_apply.py
-python3 tests/test_runtime_socket_paths.py
-python3 tests/test_stream_consumer_interim_diagnostic.py
-python3 tests/test_login_shell_hermes_path.py
-python3 tests/test_build_script_compose_version.py
-python3 tests/test_compose_agent_browser_version.py
-ruby tests/test_openai_api_routes.rb
+python3 tests/test_patch_apply.py                 # patches/apply.py 套用 unified diff
+python3 tests/test_cron_run_stats.py              # scripts/cron_run_stats.py 的 session 統計
+python3 tests/test_dingtalk_send_routing.py       # dingtalk-send-routing.patch 在 image 裡有沒有生效
+python3 tests/test_control_socket_stale_inode.py  # control-socket-stale-inode.patch 在 image 裡有沒有生效
 ```
 
-`test_runtime_socket_paths.py` 預設驗證已建置的 custom image。要重現上游 image
-缺少 runtime socket 修正的行為，可指定
-`HERMES_SOCKET_TEST_IMAGE=nousresearch/hermes-agent:v2026.9.21`；該次執行預期失敗。
+後兩支需要已建好的 image，預設 `kakalin/hermes-agent:v0.23.1`，可用 `HERMES_DINGTALK_TEST_IMAGE`、`HERMES_SOCKET_TEST_IMAGE` 換。換成上游 image 會失敗，用來確認 patch 沒漏套。
+
+`hermes-run.sh`、`hermes-build.sh` 這類包 docker 的腳本不寫測試，改完實際跑一次確認。

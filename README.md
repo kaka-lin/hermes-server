@@ -4,239 +4,80 @@
 
 # Hermes Agent Server
 
-本專案提供由 NousResearch 開發的 [Hermes Agent](https://hermes-agent.nousresearch.com) 的 Docker Compose 部署配置，包含 API Gateway 與 Web Dashboard。
+用 Docker Compose 跑 NousResearch 的 [Hermes Agent](https://hermes-agent.nousresearch.com/docs/)。
 
-## 關於與架構 (Overview)
+以上游 image `nousresearch/hermes-agent:<版本>` 為基底，建出自己的 image（名稱由 `compose.env` 的 `HERMES_IMAGE` 決定），多加了：
 
-### 服務架構 (Services)
+- DingTalk SDK（從上游 lockfile 的 `dingtalk` extra 安裝）
+- `agent-browser` CLI，讓 skill 能指定要接哪個 host Chrome
+- 自訂 skill 用的 Python 套件（[`requirements.txt`](requirements.txt)）
+- [`patches/`](patches/README.md) 裡對上游原始碼的修補
 
-- **hermes** — 單一容器,內含：
-  - 相容 OpenAI 格式的 API Gateway（對外 Port `8642`）
-  - Web Dashboard（對外 Port `9119`,由 `HERMES_DASHBOARD=1` 啟用,在容器內以 s6 服務跟 Gateway 一起跑）
+## 架構
 
-資料持久化在 Host 上的 `~/.hermes` 資料夾（透過 `HERMES_DATA_DIR` 可改）。
+一個容器服務一個 home。home 是 host 上的 data dir（主 home 是 `~/.hermes`），掛到容器的 `/opt/data`。容器裡跑兩個服務：
 
-> 這是官方建議的部署方式:dashboard 跟 gateway 同容器,共用同一份 `/opt/data`。
-> **切勿**另外開第二個容器去掛同一個資料夾——會造成 s6 log 撞鎖（`Resource busy`）並有並發寫壞
-> session / memory 的風險。詳見 [官方 Docker 文件](https://hermes-agent.nousresearch.com/docs/user-guide/docker)
-> 與 [Setup Deep Dive](docs/deployment/setup-deep-dive.md)。
-
-### 專案範圍 (Repository Scope)
-
-只放 Hermes 的可部署設定、Docker Compose、平台接入步驟、日常操作與疑難排解。
-
-通用架構、核心概念、設計取捨、CLI/Reference 筆記放在 [LLM-notes/Hermes](https://github.com/kaka-lin/LLM-notes/tree/main/Hermes)。
-
-## 快速開始 (Quick Start)
-
-### 前置作業與資源需求 (Prerequisites)
-
-- Docker Engine 24+ 與 Compose v2
-- 至少一組支援的 LLM Provider API Key
-
-| 資源 | 最低需求 | 建議規格 |
+| 服務 | 預設 port | 用途 |
 | --- | --- | --- |
-| Memory | 1 GB | 2–4 GB（使用 Browser Automation 時） |
-| CPU | 1 core | 2 cores |
-| Disk | 500 MB | 2+ GB |
+| Gateway | `8642` | 接訊息平台（Discord、DingTalk 等），並提供 OpenAI 相容 API |
+| Dashboard | `9119` | Web 管理介面，需要帳密登入 |
 
-### 1. 初始化資料夾與 API Keys
+要跑多個 agent 時有兩種隔離方式，可以疊著用：
 
-執行 Setup Wizard 一次，會在 `~/.hermes/.env` 寫入 API 金鑰、平台 Token 與 Allowlist：
+- **一個 home 多個 profile**：用官方的 `hermes profile create` 建在 `profiles/<名稱>/`，由同一個容器的 gateway 一起帶起來。
+- **多個 home**：每個 home 一個容器（`~/.hermes-<名稱>`，容器 `hermes-<名稱>`），用 `./hermes-run.sh new <名稱>` 建立。
+
+怎麼選、怎麼設定見 [Agent、Home 與 Profile](docs/agents-and-profiles.md)。
+
+## 支援的平台
+
+| 平台 | 核心（gateway、dashboard、平台、cron） | 接 host 上的 Chrome |
+| --- | --- | --- |
+| macOS（Docker Desktop） | 可用 | 可用 |
+| Windows（Docker Desktop + Git Bash） | 未實測 | 未實測 |
+| Linux | 未實測 | 尚未支援，見[瀏覽器](docs/browser.md#linux) |
+
+平台相關的值（Chrome 路徑等）會自動偵測，要改的話寫在 `platforms/<平台>.env`。
+
+## 快速開始
+
+需要 Docker 與 Compose v2、bash，和一組 LLM provider 的 API key。每一步的說明見[第一次部署](docs/setup.md)。
 
 ```bash
+# 1. image 設定，然後建 image
+cp -n compose.env.example compose.env
+./hermes-build.sh
+
+# 2. 準備 data dir，填入 API key 與 dashboard 帳密
 mkdir -p ~/.hermes
-
-docker run -it --rm \
-  -v ~/.hermes:/opt/data \
-  nousresearch/hermes-agent setup
-```
-
-### 2. 設定 Hermes 執行變數與金鑰
-
-你可以用本專案範本補齊尚未建立的 runtime 設定檔；已有檔案時不要覆蓋 Setup Wizard 寫入的金鑰：
-
-```bash
 cp -n .env.example ~/.hermes/.env
 cp -n config.example.yaml ~/.hermes/config.yaml
+# 編輯 ~/.hermes/.env
+
+# 3. 啟動並檢查
+./hermes-run.sh up
+./hermes-run.sh cli doctor
 ```
 
-**注意：** `.env.example` 是 Hermes 的**執行期**設定範本（API Key、平台 Token、Allowlist 等），複製到 `~/.hermes/.env` 給容器內 Hermes 讀取。image 版本設定則在 repo 的 `versions.env`（範本為 [`versions.env.example`](./versions.env.example)）；兩者不可混用。
+`./hermes-run.sh up` 不會 build；image 不存在時直接報錯。之後所有 `hermes` 指令都透過 `./hermes-run.sh cli <args>` 在容器裡執行，見 [CLI 指令](docs/cli.md)。
 
-依你要接的平台（Telegram / Discord / Slack），各自需要設定對應的 `XXX_BOT_TOKEN` 與 `XXX_ALLOWED_USERS`，請參考 [docs/platforms/](docs/platforms/) 下的對應指南。
+## 文件
 
-本專案的範本預設使用官方 OpenAI API。請在 `~/.hermes/.env` 填入 `OPENAI_API_KEY`，並為
-dashboard 設定非預設帳密：
+| 想做什麼 | 看這份 |
+| --- | --- |
+| 第一次跑起來 | [第一次部署](docs/setup.md) |
+| 查 `hermes-run.sh` 與常用 `hermes` 指令 | [CLI 指令](docs/cli.md) |
+| 跑多個 agent（profile 或另開 home） | [Agent、Home 與 Profile](docs/agents-and-profiles.md) |
+| 讓 agent 操作 host 上已登入的 Chrome | [瀏覽器](docs/browser.md) |
+| 了解 data dir 裡有什麼、怎麼備份 | [Data dir](docs/data-dir.md) |
+| 換 model、設 fallback | [模型設定](docs/models.md) |
+| 接 Discord、DingTalk | [Discord](docs/platforms/discord.md)、[DingTalk](docs/platforms/dingtalk.md) |
+| 修改上游原始碼、跑測試、看本專案的 skill | [patches/](patches/README.md)、[tests/](tests/README.md)、[skills/](skills/README.md) |
 
-```ini
-OPENAI_API_KEY=...
-HERMES_DASHBOARD_BASIC_AUTH_USERNAME=your-user
-HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=use-a-long-unique-password
-```
+### 疑難排解
 
-修改 `~/.hermes/.env` 或 `config.yaml` 後，重啟 Gateway 套用：
+- [VPN 切換後容器連不上外網](docs/troubleshooting/docker-dns-vpn.md)
+- [cron 顯示 OK 卻沒有結果](docs/troubleshooting/cron-nohup-delay-orphan.md)
+- [cron 的瀏覽器任務跑到一半停住](docs/troubleshooting/cron-chrome-occlusion-stall.md)
 
-```bash
-./hermes-run.sh restart
-```
-
-### 3. 首次建置與啟動
-
-首次需先建置客製化 image（在官方 base image 上套用 `patches/` 的修補），再啟動主 agent：
-
-```bash
-./hermes-build.sh        # 建置 image（base image 版本見「操作 → 建置」）
-./hermes-run.sh up       # 啟動主 agent
-```
-
-- Gateway: <http://localhost:8642>
-- Dashboard: <http://localhost:9119>
-
-## 操作 (Operations)
-
-### 建置 (Build)
-
-在官方 base image 上套用 `patches/` 的修補（見 [`patches/`](./patches/)），並將指定版本的 `agent-browser` CLI 安裝進 image，產出客製化成品 image `kakalin/hermes-agent:<版本>`。成品 tag 跟 base 版本同名，所以多個版本可以並存、隨時切換。兩個版本都由 repo `versions.env` 控制，預設 pin 在穩定 tag。
-
-```bash
-# 建置預設 pin 版本（穩定）
-./hermes-build.sh
-
-# 改建上游最新（浮動 tag，自動 --pull 刷新；非穩定發布版）
-./hermes-build.sh latest
-
-# 建指定 tag → 產出 kakalin/hermes-agent:v2026.9.21
-./hermes-build.sh v2026.9.21
-```
-
-要調整 base image 或 image 內的 agent-browser 版本時，先建立 repo 專用、已被 gitignore 的版本檔：
-
-```bash
-cp -n versions.env.example versions.env
-# 編輯 versions.env 的 HERMES_VERSION / AGENT_BROWSER_VERSION，然後重建 image
-./hermes-build.sh
-```
-
-也可只對一次建置覆寫，不改檔案：
-
-```bash
-AGENT_BROWSER_VERSION=0.26.0 ./hermes-build.sh
-```
-
-`HERMES_VERSION` 與 `AGENT_BROWSER_VERSION` 都是 build-time 設定；改完必須重建 image，再以 `./hermes-run.sh up` 啟動。它們和 `~/.hermes/.env` 的 API key／平台 token 無關。
-
-- **切換版本啟動**：`HERMES_VERSION=v2026.9.21 ./hermes-run.sh up`；分身要固定跑某版就寫進 `agents/<name>.conf`。沒設就用預設 pin。`up` 不會自動 build，image 不存在會直接報錯，先跑 `./hermes-build.sh <版本>`。
-- **patches 只對應目前 pin 的版本**：上游改動大時，patch 會套不上，build 會在 `apply.py` 停下。要重建舊版請 checkout 對應 commit，或直接把手上的舊 image `docker tag` 成該版本 tag。
-- **升級穩定版**：改 repo `versions.env` 的 `HERMES_VERSION` 後重建，不必 commit；`hermes-build.sh`、`docker-compose.yml`、`Dockerfile` 的同名預設只在沒有 `versions.env` 時使用。
-- **快速測試**：也可不經腳本直接 `docker compose build`（吃上述備援預設）。
-
-### 啟動與管理 (Run)
-
-[`hermes-run.sh`](./hermes-run.sh) 是啟動與管理的統一入口：無參數操作主 agent（`~/.hermes`），帶名稱操作分身（見下方 [多 Agent 管理](#多-agent-管理-multi-agent)）。
-
-```bash
-./hermes-run.sh up                 # 啟動主 agent（~/.hermes）
-./hermes-run.sh restart            # 重啟 process（不重建容器）
-./hermes-run.sh logs               # 跟著看即時 log
-./hermes-run.sh status             # 所有 agent 狀態總覽
-./hermes-run.sh down               # 停止並移除容器
-```
-
-> 也可不經腳本、直接用 docker compose 操作主 agent（快速 / 單一）：`docker compose up -d`、`docker compose logs -f`、`docker compose down`；直接使用 Compose 且要帶自訂 image 版本時，加上 `--env-file versions.env`。改了 `versions.env` / `docker-compose.yml` 要重建 image 與容器。
-
-#### 多 Agent 管理 (Multi-Agent)
-
-需要多個 agent 同時長駐（各自 24/7 接訊息、互不干擾）時，用 [`hermes-run.sh`](./hermes-run.sh)。它沿用同一份 `docker-compose.yml`，靠 `docker compose -p <name>` 把每個 agent 隔離成獨立 stack；分身的 port / 容器名 / data dir 寫在各自的 `agents/<name>.conf`。
-
-```bash
-./hermes-run.sh up              # 啟動主 agent (~/.hermes)
-./hermes-run.sh new coder       # scaffold 新分身（clone 主 agent，自動挑 port）
-./hermes-run.sh up coder        # 啟動分身
-./hermes-run.sh up all          # 主 agent + 所有分身一次拉起
-./hermes-run.sh down [coder|all] # 停止並移除容器（無參數 = 主 agent）
-./hermes-run.sh restart [coder]  # 重啟 process（不重建容器）
-./hermes-run.sh logs [coder]     # 跟著看 log（無參數 = 主 agent）
-./hermes-run.sh status           # 所有 agent 狀態總覽
-./hermes-run.sh ls               # 列出已設定的 agent 與其 port
-```
-
-> 機制、`new` 流程與注意事項見 [Multi-Agent — 用 hermes-run.sh 管理多容器](docs/guides/multi-agent.md#36-用-hermes-runsh-管理多容器)。
-
-### 查版本 (Check Version)
-
-base image 版本 pin 在 `versions.env` 的 `HERMES_VERSION`（未建立該檔時才使用 [`hermes-build.sh`](./hermes-build.sh) 的 `HERMES_VERSION_DEFAULT`），所以從設定就看得出版本。若用 `./hermes-build.sh latest`（浮動 tag、非穩定發布版）建置，就看不出實際版本，需用下列指令向運行中的 image 查詢。注意 image 用 **s6-overlay** 啟動：`hermes` 不在 `docker exec` 的預設 PATH，且直接 `docker run <image> hermes …` 會把所有服務拉起再關掉（一堆 `s6-rc` log、有副作用）。`hermes` 本身是 Python 入口腳本（`/opt/hermes/hermes`），所以一律用 venv python 呼叫，與 cron 腳本一致。
-
-```bash
-# 服務正在跑時（最常用，輸出乾淨）；多 agent 時把 hermes 換成目標容器名（如 hermes-katherine）
-docker exec hermes bash -c '/opt/hermes/.venv/bin/python /opt/hermes/hermes --version'
-
-# 服務沒在跑時：用建置好的 image，--entrypoint 繞過 s6 避免拉起服務
-docker run --rm --entrypoint /opt/hermes/.venv/bin/python \
-  kakalin/hermes-agent:v2026.9.21 /opt/hermes/hermes --version
-```
-
-輸出範例：`Hermes Agent v0.21.3 (2026.9.14) · upstream 345cd2b0`（v2026.9.x 起子命令 `version` 改為 `--version` 旗標）。
-
-## 設定參考 (Configuration)
-
-### 環境變數 (Environment Variables)
-
-下表是 Docker Compose 讀取的編排與 build 設定；把 image 版本寫在 repo 根目錄、已被 gitignore 的 `versions.env`（可由 [`versions.env.example`](./versions.env.example) 建立）。`HERMES_VERSION` 與 `AGENT_BROWSER_VERSION` 都可在此調整。`API_SERVER_KEY` 與其他 Hermes 執行期機密請只設定在 `~/.hermes/.env`，範本見 [`.env.example`](./.env.example)。
-
-| 變數 | 預設值 | 說明 |
-| --- | --- | --- |
-| `TZ` | `Asia/Taipei` | Container 時區 |
-| `HERMES_VERSION` | `v2026.9.21` | 上游 base image 版本 tag；build 時決定 base，`up` 時決定跑 `kakalin/hermes-agent:<版本>` 哪一個 |
-| `AGENT_BROWSER_VERSION` | `0.26.0` | build 時安裝至 image 內的 agent-browser CLI 版本；改動後須重建 image |
-| `HERMES_CONTAINER_NAME` | `hermes` | Container Name |
-| `HERMES_DATA_DIR` | `~/.hermes` | Host 上的資料目錄（多 Profile 時切換此路徑） |
-| `HERMES_GATEWAY_PORT` | `8642` | Gateway 對外 Port |
-| `HERMES_DASHBOARD_PORT` | `9119` | Dashboard 對外 Port |
-| `HERMES_DASHBOARD` | `1` | 是否在容器內啟用 Web Dashboard（s6 服務） |
-| `HERMES_DASHBOARD_BASIC_AUTH_USERNAME` | `hermes` | Dashboard 登入帳號；對外綁定必須設定認證 |
-| `HERMES_DASHBOARD_BASIC_AUTH_PASSWORD` | `hermes_default_secret` | Dashboard 登入密碼，**預設不安全，務必更改**。帳密也可寫在 `~/.hermes/.env`（會蓋過 Compose 預設），見 `.env.example` 末段。 |
-| `HERMES_RUNTIME_DIR` | `/run/hermes` | container-local tmpfs，供 gateway control / watchdog Unix socket 使用；不要改到 host bind mount。 |
-| `HERMES_MEMORY_LIMIT` | `4G` | 容器記憶體限制（Gateway + Dashboard 同容器） |
-| `HERMES_CPU_LIMIT` | `2.0` | 容器 CPU 限制 |
-| `HERMES_SHM_SIZE` | `1g` | Browser Tools 共享記憶體 |
-
-> **Note:** API Keys、平台 Token、Allowlist 由 Hermes 從 `~/.hermes/.env` 讀取。這跟官方 Docker 文件一致：Host 的 `~/.hermes` 會掛載到容器內 `/opt/data`。
-
-### 資料持久化 (Data Volume)
-
-掛載到 `~/.hermes`（或 `HERMES_DATA_DIR`）的內容：
-
-- `.env` — API 金鑰（Setup Wizard 產生，或從本專案的 `.env.example` 複製）
-- `config.yaml` — Agent 設定（如 Fallback Model、Smart Routing 等，可參考 [`config.example.yaml`](./config.example.yaml)）
-- `sessions/` — 對話歷史
-- `memories/` — 持久化記憶
-- `skills/` — 已安裝的技能
-- `logs/`、`hooks/`、`cron/` — 執行紀錄與排程
-
-> ⚠️ 切勿同時跑兩個 Gateway 共用同一資料夾（包含 `hermes -p <名稱> gateway run` 共用 volume 的場景）。多 agent 隔離請每個 agent 各自一個 host 資料夾，官方逐字警告與部署 SOP 見 [Multi-Agent — Docker Compose 多容器部署](docs/guides/multi-agent.md#3-docker-compose-多容器部署)。
-
-### 瀏覽器自動化 (Browser Automation)
-
-> 詳見 [瀏覽器自動化指南](docs/guides/browser-automation.md)
-
-使用 Playwright/Chromium 工具時需要 `shm_size: 1g`（已預設啟用）。
-不使用 Browser Tools 時可在 Repo `.env` 設定 `HERMES_SHM_SIZE=64m` 節省資源。
-
-Mac 上需要以多個 Chrome profile 透過 CDP 給 agent 使用時，有兩種做法：
-
-- **OpenClaw Node**（需另外部署 [openclaw-server](https://github.com/kaka-lin/openclaw-server)）：由 Node 當 Chrome supervisor，採 lazy-load，profile 第一次被使用時才 spawn。
-- **本專案的 [`start-browsers.sh`](start-browsers.sh)（推薦）**：在 host 端 eager 啟動／停止／檢查多組獨立 Chrome 實例，不依賴 OpenClaw，避免 lazy-load 與 fallback 陷阱。Profile 與 port 對應寫在同層的 `browsers.conf`。
-
-  > 差異比較與選擇依據見： [瀏覽器接線架構（Docker → Mac Chrome）](docs/guides/mac-chrome-cdp-guide.md)。
-
-## 完整文件 (Documentation)
-
-完整文件請見 [`docs/`](docs/README.md)：
-
-- [安裝指南](docs/deployment/setup.md)
-- [瀏覽器自動化指南](docs/guides/browser-automation.md)
-- [瀏覽器接線架構（Docker → Mac Chrome）](docs/guides/mac-chrome-cdp-guide.md)
-- [Discord 整合](docs/platforms/discord.md)
-- [常見問題排除](docs/README.md#疑難排解-troubleshooting)
-
-如需深入了解 Hermes Agent 核心架構，請參閱 [LLM-notes/Hermes](https://github.com/kaka-lin/LLM-notes/tree/main/Hermes)。
+Hermes 本身的功能與設定以[官方文件](https://hermes-agent.nousresearch.com/docs/)為準。
